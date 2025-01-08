@@ -15,7 +15,7 @@ else()
     message(FATAL_ERROR "Project version file .version not found")
 endif ()
     
-project(serializer VERSION ${PROJECT_VERSION} DESCRIPTION "SSS - A simple struct serializer" LANGUAGES C)
+project(serializer VERSION ${PROJECT_VERSION} DESCRIPTION "SSS - A simple struct serializer" LANGUAGES C CXX)
 
 set(CMAKE_C_STANDARD 11)
 
@@ -95,6 +95,7 @@ if (SSS_BUILD_EXAMPLES)
     add_executable(basic_example examples/basic_example.c)
     target_link_libraries(basic_example PRIVATE ${LIB_NAME})
 
-    add_executable(proto_example examples/proto_example.c)
+    add_executable(proto_example examples/proto_example.cpp)
+    set_target_properties(proto_example PROPERTIES LANGUAGE CXX)
     target_link_libraries(proto_example PRIVATE ${LIB_NAME})
 endif ()

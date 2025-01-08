@@ -15,6 +15,10 @@
 
 #define S_MAX_FIELDS (128)
 
+#ifndef S_TYPE_CHECKING_ENABLED
+#define S_TYPE_CHECKING_ENABLED 1
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -76,7 +80,7 @@ typedef struct {
     s_field_type type;
     size_t offset;
     size_t size;
-    s_field_opts opts;
+    int32_t opts;
     struct {
         struct s_type_info* struct_type_info;
         struct {
@@ -154,7 +158,22 @@ s_serializer_error deserialize(const s_type_info* info, void* data,
                         .opts = S_FIELD_OPT_NONE,                 \
                         .struct_type_info = NULL};
 
-#define S_ASSERT_TYPE(TYPE, VALUE) ((TYPE*) {0} = &(VALUE))
+#if S_TYPE_CHECKING_ENABLED
+#ifdef __cplusplus
+#include <type_traits>
+#define S_ASSERT_TYPE(TYPE, VALUE)                                      \
+    do {                                                                \
+        static_assert(                                                  \
+            std::is_same<std::remove_const<TYPE*>::type,                \
+                         decltype(const_cast<TYPE*>(&(VALUE)))>::value, \
+            "Type mismatch");                                           \
+    } while (0)
+#else
+#define S_ASSERT_TYPE(TYPE, VALUE) ((TYPE*) 0 == &(VALUE))
+#endif
+#else
+#define S_ASSERT_TYPE(TYPE, VALUE)
+#endif
 
 #define GET_MACRO(_1, _2, NAME, ...) NAME
 
@@ -192,6 +211,13 @@ s_serializer_error deserialize(const s_type_info* info, void* data,
 #define S_FIELD_INT32(...)                        \
     GET_MACRO(__VA_ARGS__, S_FIELD_INT32_LABELED, \
               S_FIELD_INT32_LABELED)(__VA_ARGS__, NULL)
+
+// special case for enums without type check
+#define S_FIELD_ENUM_LABELED(NAME, FIELD_LABEL, ...) \
+    S_FIELD_LABELED(NAME, FIELD_TYPE_INT32, FIELD_LABEL);
+#define S_FIELD_ENUM(...)                                              \
+    GET_MACRO(__VA_ARGS__, S_FIELD_ENUM_LABELED, S_FIELD_ENUM_LABELED) \
+    (__VA_ARGS__, NULL)
 
 #define S_FIELD_UINT32_LABELED(NAME, FIELD_LABEL, ...) \
     S_ASSERT_TYPE(uint32_t, dummy.NAME);               \
@@ -234,6 +260,13 @@ s_serializer_error deserialize(const s_type_info* info, void* data,
 #define S_FIELD_STRING(...)                        \
     GET_MACRO(__VA_ARGS__, S_FIELD_STRING_LABELED, \
               S_FIELD_STRING_LABELED)(__VA_ARGS__, NULL)
+
+#define S_FIELD_STRING_CONST_LABELED(NAME, FIELD_LABEL, ...) \
+    S_ASSERT_TYPE(const char*, dummy.NAME);                  \
+    S_FIELD_LABELED(NAME, FIELD_TYPE_STRING, FIELD_LABEL);
+#define S_FIELD_STRING_CONST(...)                        \
+    GET_MACRO(__VA_ARGS__, S_FIELD_STRING_CONST_LABELED, \
+              S_FIELD_STRING_CONST_LABELED)(__VA_ARGS__, NULL)
 
 #define S_FIELD_BOOL_LABELED(NAME, FIELD_LABEL, ...) \
     S_ASSERT_TYPE(bool, dummy.NAME);                 \
