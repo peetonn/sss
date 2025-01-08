@@ -63,9 +63,6 @@ target_include_directories(${LIB_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-# Tests
-# TODO
-
 # Install
 install(TARGETS ${LIB_NAME}
     LIBRARY DESTINATION lib
@@ -75,9 +72,29 @@ install(TARGETS ${LIB_NAME}
     PUBLIC_HEADER DESTINATION include/${LIB_NAME}
 )
 
-# Examples
-add_executable(basic_example examples/basic_example.c)
-target_link_libraries(basic_example PRIVATE ${LIB_NAME})
+# Tests
+include(CTest)
 
-add_executable(proto_example examples/proto_example.c)
-target_link_libraries(proto_example PRIVATE ${LIB_NAME})
+if (BUILD_TESTING)
+    set(SSS_BUILD_TESTS_default ON)
+else()
+    set(SSS_BUILD_TESTS_default OFF)
+endif()
+
+option(SSS_BUILD_TESTS "Build tests" ${SSS_BUILD_TESTS_default})
+
+if (SSS_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
+
+
+# Examples
+option(SSS_BUILD_EXAMPLES "Build examples" OFF)
+
+if (SSS_BUILD_EXAMPLES)
+    add_executable(basic_example examples/basic_example.c)
+    target_link_libraries(basic_example PRIVATE ${LIB_NAME})
+
+    add_executable(proto_example examples/proto_example.c)
+    target_link_libraries(proto_example PRIVATE ${LIB_NAME})
+endif ()
