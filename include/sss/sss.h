@@ -176,6 +176,7 @@ s_serializer_error deserialize(const s_type_info* info, void* data,
 #endif
 
 #define GET_MACRO(_1, _2, NAME, ...) NAME
+#define GET_MACRO_3(_1, _2, _3, NAME, ...) NAME
 
 #define S_FIELD_INT8_LABELED(NAME, FIELD_LABEL, ...) \
     S_ASSERT_TYPE(int8_t, dummy.NAME);               \
@@ -293,9 +294,9 @@ s_serializer_error deserialize(const s_type_info* info, void* data,
                         .opts = S_FIELD_OPT_NONE,                 \
                         .struct_type_info = S_GET_STRUCT_TYPE_INFO(TYPE)};
 
-#define S_FIELD_STRUCT(...)                        \
-    GET_MACRO(__VA_ARGS__, S_FIELD_STRUCT_LABELED, \
-              S_FIELD_STRUCT_LABELED)(__VA_ARGS__, NULL)
+#define S_FIELD_STRUCT(...)                          \
+    GET_MACRO_3(__VA_ARGS__, S_FIELD_STRUCT_LABELED, \
+                S_FIELD_STRUCT_LABELED)(__VA_ARGS__, NULL)
 
 #define S_UNION_BEGIN_TAG(NAME, TAG_NAME)                  \
     {                                                      \
