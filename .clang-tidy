@@ -1,0 +1,17 @@
+Checks:          '-*,readability-identifier-naming,readability-magic-numbers'
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*'
+
+CheckOptions:
+  - key:             c-analyzer.C_LANGUAGE_STANDARD
+    value:           c11
+  - key:             readability-identifier-naming.VariableCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.FunctionCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.StructCase
+    value:           'lower_case'
+  - key:             readability-magic-numbers.IgnoredIntegerValues
+    value:           '1;-1;0;2;1000;1000000'
+  - key:             readability-magic-numbers.IgnoredFloatingPointValues
+    value:           '1.0;-1.0;2.0;0.0;1000.0;1000000.0'
