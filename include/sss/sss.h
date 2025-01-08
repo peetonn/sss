@@ -5,8 +5,8 @@
  * Copyright (c) 2025 Peter Gusev. All rights reserved.
  */
 
-#ifndef __SERIALIZER_H__
-#define __SERIALIZER_H__
+#ifndef __SSS_H__
+#define __SSS_H__
 
 #include <assert.h>
 #include <stdbool.h>
@@ -122,12 +122,12 @@ s_serializer_error deserialize(const s_type_info* info, void* data,
         static bool initialized = false;                \
         if (initialized)                                \
             return &info;                               \
-        info.type_name = #TYPE;                         \
         static s_field_info fields[S_MAX_FIELDS] = {0}; \
-        info.fields = fields;                           \
-        info.field_count = 0;                           \
         typedef TYPE struct_type;                       \
-        struct_type dummy;
+        struct_type dummy;                              \
+        info.type_name = #TYPE;                         \
+        info.fields = fields;                           \
+        info.field_count = 0;
 
 #define S_SERIALIZE_END() \
     initialized = true;   \

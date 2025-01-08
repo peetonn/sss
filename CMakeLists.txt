@@ -15,7 +15,7 @@ else()
     message(FATAL_ERROR "Project version file .version not found")
 endif ()
     
-project(serializer C VERSION ${PROJECT_VERSION})
+project(serializer VERSION ${PROJECT_VERSION} DESCRIPTION "SSS - A simple struct serializer" LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 
@@ -48,22 +48,36 @@ add_definitions(
 add_compile_definitions("DEBUG=$<CONFIG:Debug>")
 
 # Library
-add_library(serializer
+set(LIB_NAME sss)
+add_library(${LIB_NAME}
     src/serializer.c
     # src/binary_format.c
     # src/json_format.c
 )
-
-target_include_directories(serializer
+set_target_properties(${LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
+set_target_properties(${LIB_NAME} PROPERTIES PUBLIC_HEADER "include/sss/sss.h")
+target_include_directories(${LIB_NAME}
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+# Tests
+# TODO
+
+# Install
+install(TARGETS ${LIB_NAME}
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+    INCLUDES DESTINATION include/${LIB_NAME}
+    PUBLIC_HEADER DESTINATION include/${LIB_NAME}
+)
+
 # Examples
 add_executable(basic_example examples/basic_example.c)
-target_link_libraries(basic_example PRIVATE serializer)
+target_link_libraries(basic_example PRIVATE ${LIB_NAME})
 
 add_executable(proto_example examples/proto_example.c)
-target_link_libraries(proto_example PRIVATE serializer)
+target_link_libraries(proto_example PRIVATE ${LIB_NAME})

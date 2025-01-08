@@ -5,7 +5,7 @@
  * Copyright (c) 2025 Peter Gusev. All rights reserved.
  */
 
-#include "serializer/serializer.h"
+#include "sss/sss.h"
 
 #include <stdlib.h>
 #include <string.h>
