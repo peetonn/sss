@@ -15,6 +15,10 @@
 
 #define S_MAX_FIELDS (128)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     FIELD_TYPE_INVALID = 0,
 
@@ -84,7 +88,7 @@ typedef struct {
     };
 } s_field_info;
 
-typedef struct {
+typedef struct s_type_info {
     const char* type_name;
     s_field_info* fields;
     size_t field_count;
@@ -115,6 +119,11 @@ s_serializer_error deserialize(const s_type_info* info, void* data,
                                const uint8_t* buffer, size_t buffer_size,
                                s_allocator* allocator);
 
+#ifdef __cplusplus
+}
+#endif
+
+// macro API
 #define S_GET_STRUCT_TYPE_INFO(TYPE) s_get_struct_type_info_##TYPE()
 #define S_SERIALIZE_BEGIN(TYPE)                         \
     s_type_info* s_get_struct_type_info_##TYPE() {      \
