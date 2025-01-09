@@ -51,8 +51,7 @@ add_compile_definitions("DEBUG=$<CONFIG:Debug>")
 set(LIB_NAME sss)
 add_library(${LIB_NAME}
     src/serializer.c
-    # src/binary_format.c
-    # src/json_format.c
+    src/tlv.c
 )
 set_target_properties(${LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 set_target_properties(${LIB_NAME} PROPERTIES PUBLIC_HEADER "include/sss/sss.h")

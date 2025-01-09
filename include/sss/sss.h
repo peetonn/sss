@@ -39,31 +39,16 @@ typedef enum {
     FIELD_TYPE_FLOAT,
     FIELD_TYPE_DOUBLE,
 
-    FIELD_TYPE_STRING,
     FIELD_TYPE_BOOL,
-
     FIELD_TYPE_BLOB, // continuous memory block
+
+    FIELD_TYPE_STRING, // ANSI string
 
     // FIELD_TYPE_ARRAY,  // fixed size arrays (C arrays)
     // FIELD_TYPE_VECTOR, // dynamic arrays (C pointer)
 
     FIELD_TYPE_STRUCT,
 } s_field_type;
-
-typedef enum {
-    TLV_TAG_FIELD = 0x01,
-    TLV_TAG_COMPRESSED_FIELD,
-    TLV_TAG_ENCRYPTED_FIELD,
-    TLV_TAG_TLV_ELEMENT,
-    TLV_TAG_COMPRESSED_TLV,
-    TLV_TAG_ENCRYPTED_TLV,
-} tlv_tag;
-
-// Serialization formats
-typedef enum {
-    FORMAT_BINARY = 1,
-    FORMAT_JSON = 2,
-} serialization_format;
 
 typedef enum {
     S_FIELD_OPT_NONE = 0,
@@ -105,24 +90,53 @@ typedef enum {
     SERIALIZER_ERROR_BUFFER_TOO_SMALL = -1,
     SERIALIZER_ERROR_INVALID_TYPE = -2,
     SERIALIZER_ERROR_COMPRESSION_FAILED = -3,
+    SERIALIZER_ERROR_ENCRYPTION_FAILED = -4,
+    SERIALIZER_ERROR_ALLOCATOR_FAILED = -5,
 } s_serializer_error;
 
-typedef void*(s_allocator_allocate) (size_t);
-typedef void*(s_allocator_deallocate) (void*);
+typedef void* (*s_allocator_allocate)(size_t);
+typedef void (*s_allocator_deallocate)(void*);
 
 typedef struct {
-    s_allocator_allocate* allocate;
-    s_allocator_deallocate* deallocate;
+    s_allocator_allocate allocate;
+    s_allocator_deallocate deallocate;
 } s_allocator;
 
-s_serializer_error serialize(const s_type_info* info, const void* data,
-                             serialization_format format, uint8_t* buffer,
+typedef struct {
+    bool is_compressed;         // TODO
+    const char* encryption_key; // TODO -- RSA, AES, at minimum
+    s_allocator* allocator;     // allocator for compression and encryption
+} s_serialize_options;
+
+s_serializer_error serialize(s_serialize_options opts, const s_type_info* info,
+                             const void* data, uint8_t* buffer,
                              size_t buffer_size, size_t* bytes_written);
 
-s_serializer_error deserialize(const s_type_info* info, void* data,
-                               serialization_format format,
-                               const uint8_t* buffer, size_t buffer_size,
-                               s_allocator* allocator);
+// Serialization formats
+typedef enum {
+    FORMAT_C_STRUCT = 1,
+    FORMAT_JSON_STRING = 2,
+    FORMAT_CUSTOM = 3,
+} s_deserialization_format;
+
+typedef void (*s_custom_deserializer_cb)(int el_idx, int el_lvl, size_t length,
+                                         const uint8_t* value,
+                                         s_field_type type, void* user_data);
+
+typedef struct {
+    s_deserialization_format format;
+    s_allocator* allocator; // allocator for deserialized data, decompression
+                            // and decryption
+
+    s_custom_deserializer_cb custom_deserializer;
+    void* user_data;
+
+    const char* encryption_key; // TODO
+} s_deserialize_options;
+
+s_serializer_error deserialize(s_deserialize_options opts,
+                               const s_type_info* info, void* data,
+                               const uint8_t* buffer, size_t buffer_size);
 
 #ifdef __cplusplus
 }
@@ -130,6 +144,7 @@ s_serializer_error deserialize(const s_type_info* info, void* data,
 
 // macro API
 #define S_GET_STRUCT_TYPE_INFO(TYPE) s_get_struct_type_info_##TYPE()
+#define S_DEFINE_TYPE_INFO(TYPE) s_type_info* s_get_struct_type_info_##TYPE()
 #define S_SERIALIZE_BEGIN(TYPE)                         \
     s_type_info* s_get_struct_type_info_##TYPE() {      \
         static s_type_info info = {0};                  \
@@ -318,6 +333,8 @@ s_serializer_error deserialize(const s_type_info* info, void* data,
                 field_found = true;                                           \
                 info.fields[i].opts |= S_FIELD_OPT_OPTIONAL;                  \
                 info.fields[i].optional_field_info.tag_offset = tag_offset;   \
+                assert(info.fields[i].offset > tag_offset &&                  \
+                       "Tag field must be before tagged field");              \
                 info.fields[i].optional_field_info.tag_value_int = TAG_VALUE; \
                 info.fields[i].optional_field_info.tag_type =                 \
                     FIELD_TYPE_INT32;                                         \
@@ -335,6 +352,8 @@ s_serializer_error deserialize(const s_type_info* info, void* data,
                 field_found = true;                                           \
                 info.fields[i].opts |= S_FIELD_OPT_OPTIONAL;                  \
                 info.fields[i].optional_field_info.tag_offset = tag_offset;   \
+                assert(info.fields[i].offset > tag_offset &&                  \
+                       "Tag field must be before tagged field");              \
                 info.fields[i].optional_field_info.tag_value_string =         \
                     TAG_VALUE;                                                \
                 info.fields[i].optional_field_info.tag_type =                 \
