@@ -14,9 +14,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-s_serializer_error serialize(s_serialize_options opts, const s_type_info* info,
-                             const void* data, uint8_t* buffer,
-                             size_t buffer_size, size_t* bytes_written) {
+s_serializer_error s_serialize(s_serialize_options opts,
+                               const s_type_info* info, const void* data,
+                               uint8_t* buffer, size_t buffer_size,
+                               size_t* bytes_written) {
     // TODO: handle compression and encryption
     return s_tlv_encode(info, data, buffer, buffer_size, bytes_written);
 }
@@ -244,9 +245,9 @@ void tlv_decode_deserializer_cb(
     ctx->prev_level = decoded_el_data->level;
 }
 
-s_serializer_error deserialize(s_deserialize_options opts,
-                               const s_type_info* info, void* data,
-                               const uint8_t* buffer, size_t buffer_size) {
+s_serializer_error s_deserialize(s_deserialize_options opts,
+                                 const s_type_info* info, void* data,
+                                 const uint8_t* buffer, size_t buffer_size) {
     if (!info || !data || !buffer || !opts.allocator) {
         return SERIALIZER_ERROR_INVALID_TYPE;
     }

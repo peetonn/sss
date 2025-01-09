@@ -43,6 +43,7 @@ add_executable(tlv_encode_decode_tests
 )
 target_compile_definitions(tlv_encode_decode_tests PRIVATE ${COMMON_COMPILE_DEFINITIONS})
 target_link_libraries(tlv_encode_decode_tests PRIVATE ${COMMON_LINK_LIBRARIES})
+add_test(NAME tlv_encode_decode_tests COMMAND tlv_encode_decode_tests)
 
 add_executable(serialize_tests
     ${COMMON_SRCS}
@@ -50,3 +51,4 @@ add_executable(serialize_tests
 )
 target_compile_definitions(serialize_tests PRIVATE ${COMMON_COMPILE_DEFINITIONS})
 target_link_libraries(serialize_tests PRIVATE ${COMMON_LINK_LIBRARIES})
+add_test(NAME serialize_tests COMMAND serialize_tests)

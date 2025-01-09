@@ -108,9 +108,10 @@ typedef struct {
     s_allocator* allocator;     // allocator for compression and encryption
 } s_serialize_options;
 
-s_serializer_error serialize(s_serialize_options opts, const s_type_info* info,
-                             const void* data, uint8_t* buffer,
-                             size_t buffer_size, size_t* bytes_written);
+s_serializer_error s_serialize(s_serialize_options opts,
+                               const s_type_info* info, const void* data,
+                               uint8_t* buffer, size_t buffer_size,
+                               size_t* bytes_written);
 
 // Serialization formats
 typedef enum {
@@ -134,9 +135,9 @@ typedef struct {
     const char* encryption_key; // TODO
 } s_deserialize_options;
 
-s_serializer_error deserialize(s_deserialize_options opts,
-                               const s_type_info* info, void* data,
-                               const uint8_t* buffer, size_t buffer_size);
+s_serializer_error s_deserialize(s_deserialize_options opts,
+                                 const s_type_info* info, void* data,
+                                 const uint8_t* buffer, size_t buffer_size);
 
 #ifdef __cplusplus
 }

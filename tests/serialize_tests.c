@@ -34,8 +34,8 @@ void test_serialize_deserialize_simple_struct() {
     const s_type_info* info = S_GET_STRUCT_TYPE_INFO(simple_struct);
     s_serialize_options opts = {0};
     s_serializer_error err =
-        serialize(opts, S_GET_STRUCT_TYPE_INFO(simple_struct), &ss, buffer,
-                  sizeof(buffer), &bytes_written);
+        s_serialize(opts, S_GET_STRUCT_TYPE_INFO(simple_struct), &ss, buffer,
+                    sizeof(buffer), &bytes_written);
 
     TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
     TEST_ASSERT_EQUAL(102, bytes_written);
@@ -47,8 +47,8 @@ void test_serialize_deserialize_simple_struct() {
         .allocator = &g_default_allocator,
     };
 
-    err = deserialize(dopts, S_GET_STRUCT_TYPE_INFO(simple_struct),
-                      &deserialized_ss, buffer, bytes_written);
+    err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(simple_struct),
+                        &deserialized_ss, buffer, bytes_written);
 
     TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
     TEST_ASSERT_EQUAL_INT(42, deserialized_ss.id);
@@ -83,8 +83,8 @@ void test_serialize_deserialize_nested_struct() {
     const s_type_info* info = S_GET_STRUCT_TYPE_INFO(nested_struct);
     s_serialize_options opts = {0};
     s_serializer_error err =
-        serialize(opts, S_GET_STRUCT_TYPE_INFO(nested_struct), &ns, buffer,
-                  sizeof(buffer), &bytes_written);
+        s_serialize(opts, S_GET_STRUCT_TYPE_INFO(nested_struct), &ns, buffer,
+                    sizeof(buffer), &bytes_written);
 
     TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
     TEST_ASSERT_EQUAL(139, bytes_written);
@@ -96,8 +96,8 @@ void test_serialize_deserialize_nested_struct() {
         .allocator = &g_default_allocator,
     };
 
-    err = deserialize(dopts, S_GET_STRUCT_TYPE_INFO(nested_struct),
-                      &deserialized_ns, buffer, bytes_written);
+    err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(nested_struct),
+                        &deserialized_ns, buffer, bytes_written);
 
     TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
     TEST_ASSERT_EQUAL_INT(ENUM_VALUE_1, deserialized_ns.id);
@@ -160,8 +160,8 @@ void test_serialize_deserialize_super_nested_struct() {
     const s_type_info* info = S_GET_STRUCT_TYPE_INFO(super_nested_struct);
     s_serialize_options opts = {0};
     s_serializer_error err =
-        serialize(opts, S_GET_STRUCT_TYPE_INFO(super_nested_struct), &sns,
-                  buffer, sizeof(buffer), &bytes_written);
+        s_serialize(opts, S_GET_STRUCT_TYPE_INFO(super_nested_struct), &sns,
+                    buffer, sizeof(buffer), &bytes_written);
 
     TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
     TEST_ASSERT_EQUAL(263, bytes_written);
@@ -173,8 +173,8 @@ void test_serialize_deserialize_super_nested_struct() {
         .allocator = &g_default_allocator,
     };
 
-    err = deserialize(dopts, S_GET_STRUCT_TYPE_INFO(super_nested_struct),
-                      &deserialized_sns, buffer, bytes_written);
+    err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(super_nested_struct),
+                        &deserialized_sns, buffer, bytes_written);
 
     TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
     TEST_ASSERT_EQUAL_INT(ENUM_VALUE_2, deserialized_sns.sub.id);
@@ -225,8 +225,8 @@ void test_serialize_deserialize_union_structs() {
         const s_type_info* info = S_GET_STRUCT_TYPE_INFO(nested_union_struct);
         s_serialize_options opts = {0};
         s_serializer_error err =
-            serialize(opts, S_GET_STRUCT_TYPE_INFO(nested_union_struct), &ns,
-                      buffer, sizeof(buffer), &bytes_written);
+            s_serialize(opts, S_GET_STRUCT_TYPE_INFO(nested_union_struct), &ns,
+                        buffer, sizeof(buffer), &bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL(118, bytes_written);
@@ -238,8 +238,8 @@ void test_serialize_deserialize_union_structs() {
             .allocator = &g_default_allocator,
         };
 
-        err = deserialize(dopts, S_GET_STRUCT_TYPE_INFO(nested_union_struct),
-                          &deserialized_ns, buffer, bytes_written);
+        err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(nested_union_struct),
+                            &deserialized_ns, buffer, bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL_INT(ENUM_VALUE_1, deserialized_ns.id);
@@ -270,8 +270,8 @@ void test_serialize_deserialize_union_structs() {
         const s_type_info* info = S_GET_STRUCT_TYPE_INFO(nested_union_struct);
         s_serialize_options opts = {0};
         s_serializer_error err =
-            serialize(opts, S_GET_STRUCT_TYPE_INFO(nested_union_struct), &ns,
-                      buffer, sizeof(buffer), &bytes_written);
+            s_serialize(opts, S_GET_STRUCT_TYPE_INFO(nested_union_struct), &ns,
+                        buffer, sizeof(buffer), &bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL(20, bytes_written);
@@ -283,8 +283,8 @@ void test_serialize_deserialize_union_structs() {
             .allocator = &g_default_allocator,
         };
 
-        err = deserialize(dopts, S_GET_STRUCT_TYPE_INFO(nested_union_struct),
-                          &deserialized_ns, buffer, bytes_written);
+        err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(nested_union_struct),
+                            &deserialized_ns, buffer, bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL_INT(ENUM_VALUE_2, deserialized_ns.id);
@@ -305,8 +305,8 @@ void test_serialize_deserialize_union_structs() {
         const s_type_info* info = S_GET_STRUCT_TYPE_INFO(nested_union_struct);
         s_serialize_options opts = {0};
         s_serializer_error err =
-            serialize(opts, S_GET_STRUCT_TYPE_INFO(nested_union_struct), &ns,
-                      buffer, sizeof(buffer), &bytes_written);
+            s_serialize(opts, S_GET_STRUCT_TYPE_INFO(nested_union_struct), &ns,
+                        buffer, sizeof(buffer), &bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL(48, bytes_written);
@@ -318,8 +318,8 @@ void test_serialize_deserialize_union_structs() {
             .allocator = &g_default_allocator,
         };
 
-        err = deserialize(dopts, S_GET_STRUCT_TYPE_INFO(nested_union_struct),
-                          &deserialized_ns, buffer, bytes_written);
+        err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(nested_union_struct),
+                            &deserialized_ns, buffer, bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL_INT(ENUM_VALUE_3, deserialized_ns.id);
@@ -344,8 +344,8 @@ void test_serialize_deserialize_into_json_string() {
         const s_type_info* info = S_GET_STRUCT_TYPE_INFO(simple_struct);
         s_serialize_options opts = {0};
         s_serializer_error err =
-            serialize(opts, S_GET_STRUCT_TYPE_INFO(simple_struct), &ss, buffer,
-                      sizeof(buffer), &bytes_written);
+            s_serialize(opts, S_GET_STRUCT_TYPE_INFO(simple_struct), &ss,
+                        buffer, sizeof(buffer), &bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL(102, bytes_written);
@@ -357,8 +357,8 @@ void test_serialize_deserialize_into_json_string() {
             .allocator = &g_default_allocator,
         };
 
-        err = deserialize(dopts, S_GET_STRUCT_TYPE_INFO(simple_struct),
-                          deserialized_json, buffer, bytes_written);
+        err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(simple_struct),
+                            deserialized_json, buffer, bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL_STRING(
@@ -389,8 +389,8 @@ void test_serialize_deserialize_into_json_string() {
         const s_type_info* info = S_GET_STRUCT_TYPE_INFO(nested_struct);
         s_serialize_options opts = {0};
         s_serializer_error err =
-            serialize(opts, S_GET_STRUCT_TYPE_INFO(nested_struct), &ns, buffer,
-                      sizeof(buffer), &bytes_written);
+            s_serialize(opts, S_GET_STRUCT_TYPE_INFO(nested_struct), &ns,
+                        buffer, sizeof(buffer), &bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL(139, bytes_written);
@@ -402,8 +402,8 @@ void test_serialize_deserialize_into_json_string() {
             .allocator = &g_default_allocator,
         };
 
-        err = deserialize(dopts, S_GET_STRUCT_TYPE_INFO(nested_struct),
-                          deserialized_json, buffer, bytes_written);
+        err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(nested_struct),
+                            deserialized_json, buffer, bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL_STRING(
@@ -448,8 +448,8 @@ void test_serialize_deserialize_into_json_string() {
         const s_type_info* info = S_GET_STRUCT_TYPE_INFO(super_nested_struct);
         s_serialize_options opts = {0};
         s_serializer_error err =
-            serialize(opts, S_GET_STRUCT_TYPE_INFO(super_nested_struct), &sns,
-                      buffer, sizeof(buffer), &bytes_written);
+            s_serialize(opts, S_GET_STRUCT_TYPE_INFO(super_nested_struct), &sns,
+                        buffer, sizeof(buffer), &bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL(263, bytes_written);
@@ -461,8 +461,8 @@ void test_serialize_deserialize_into_json_string() {
             .allocator = &g_default_allocator,
         };
 
-        err = deserialize(dopts, S_GET_STRUCT_TYPE_INFO(super_nested_struct),
-                          deserialized_json, buffer, bytes_written);
+        err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(super_nested_struct),
+                            deserialized_json, buffer, bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL_STRING(
