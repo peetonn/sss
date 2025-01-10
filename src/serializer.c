@@ -281,7 +281,7 @@ s_serializer_error s_deserialize(s_deserialize_options opts,
             }
         }
 
-        return err;
+        return err != SERIALIZER_OK ? err : ctx.err;
     }
 
     // closing bracket handling for json string
