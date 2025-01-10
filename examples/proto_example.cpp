@@ -39,9 +39,9 @@ typedef struct {
 typedef struct {
     enum message_type type;
     union {
-        response response;
-        candidate candidate;
-        description description;
+        response r;
+        candidate c;
+        description d;
     } data;
 } protocol;
 
@@ -65,14 +65,14 @@ S_SERIALIZE_BEGIN(protocol)
 S_FIELD_ENUM(type)
 
 S_UNION_BEGIN_TAG(data, type)
-S_FIELD_STRUCT(data.response, response, "response")
-S_FIELD_TAGGED_INT(data.response, RESPONSE)
+S_FIELD_STRUCT(data.r, response, "response")
+S_FIELD_TAGGED_INT(data.r, RESPONSE)
 
-S_FIELD_STRUCT(data.candidate, candidate, "candidate")
-S_FIELD_TAGGED_INT(data.candidate, CANDIDATE)
+S_FIELD_STRUCT(data.c, candidate, "candidate")
+S_FIELD_TAGGED_INT(data.c, CANDIDATE)
 
-S_FIELD_STRUCT(data.description, description, "description")
-S_FIELD_TAGGED_INT(data.description, DESCRIPTION)
+S_FIELD_STRUCT(data.d, description, "description")
+S_FIELD_TAGGED_INT(data.d, DESCRIPTION)
 S_UNION_END()
 
 S_SERIALIZE_END()
@@ -82,22 +82,21 @@ void print_protocol_message(const protocol* p) {
     case RESPONSE:
         printf("Response {\n");
         printf("    status: %s\n",
-               p->data.response.status == RESPONSE_OK ? "OK" : "ERROR");
-        printf("    data: %s\n", p->data.response.data);
+               p->data.r.status == RESPONSE_OK ? "OK" : "ERROR");
+        printf("    data: %s\n", p->data.r.data);
         printf("}\n");
         break;
     case CANDIDATE:
         printf("Candidate {\n");
-        printf("    identifier: %s\n", p->data.candidate.identifier);
-        printf("    index: %d\n", p->data.candidate.index);
-        printf("    value: %s\n", p->data.candidate.value);
+        printf("    identifier: %s\n", p->data.c.identifier);
+        printf("    index: %d\n", p->data.c.index);
+        printf("    value: %s\n", p->data.c.value);
         printf("}\n");
         break;
     case DESCRIPTION:
         printf("Description {\n");
-        printf("    format: %s\n",
-               p->data.description.format == FORMAT_A ? "A" : "B");
-        printf("    content: %s\n", p->data.description.content);
+        printf("    format: %s\n", p->data.d.format == FORMAT_A ? "A" : "B");
+        printf("    content: %s\n", p->data.d.content);
         printf("}\n");
         break;
     }
@@ -116,15 +115,15 @@ static s_allocator my_allocator = {.allocate = my_allocate,
 int main() {
     protocol p = {
         .type = CANDIDATE,
-        .data = {.candidate = {.identifier = "test",
-                               .index = 42,
-                               .value = "value"}},
+        .data = {.c = {.identifier = "test",
+                       .index = 42, // NOLINT
+                       .value = "value"}},
     };
 
     printf("Original:\n");
     print_protocol_message(&p);
 
-    uint8_t buffer[4096];
+    uint8_t buffer[4096]; // NOLINT
     size_t bytes_written = 0;
     s_serialize_options opts = {};
     s_serializer_error err =
@@ -138,8 +137,10 @@ int main() {
     printf("\nSerialized size: %zu bytes\n", bytes_written);
 
     // Deserialize into a new struct
-    s_deserialize_options d_opts = {.allocator = &my_allocator,
-                                    .format = FORMAT_C_STRUCT};
+    s_deserialize_options d_opts = {
+        .format = FORMAT_C_STRUCT,
+        .allocator = &my_allocator,
+    };
     protocol deserialized = {};
     err = s_deserialize(d_opts, S_GET_STRUCT_TYPE_INFO(protocol), &deserialized,
                         buffer, bytes_written);
