@@ -38,7 +38,6 @@ s_serializer_error s_tlv_encode_field(const s_field_info* field,
                                       const void* data, uint8_t* tlv_buffer,
                                       size_t buffer_size,
                                       size_t* bytes_written) {
-
     const uint8_t* field_data = (const uint8_t*) data + field->offset;
 
     // check if field is optional and if it should be serialized
@@ -73,10 +72,6 @@ s_serializer_error s_tlv_encode_field(const s_field_info* field,
             value_ptr = field_data;
         }
 
-        if (buffer_size < TLV_SIZEOF(&tlv_el)) {
-            return SERIALIZER_ERROR_BUFFER_TOO_SMALL;
-        }
-
         tlv_el.tag = (uint16_t) TLV_TAG_FIELD;
     } break;
 
@@ -89,18 +84,29 @@ s_serializer_error s_tlv_encode_field(const s_field_info* field,
         tlv_el.tag = (uint16_t) TLV_TAG_NESTED;
         value_ptr = NULL;
 
+        if (buffer_size < TLV_SIZEOF_TL) {
+            return SERIALIZER_ERROR_BUFFER_TOO_SMALL;
+        }
+
         // encode directly into buffer
+        size_t sub_bytes_written = 0;
         s_serializer_error err =
             s_tlv_encode(sub_info, field_data, tlv_buffer + TLV_SIZEOF_TL,
-                         buffer_size - TLV_SIZEOF_TL, &tlv_el.length);
+                         buffer_size - TLV_SIZEOF_TL, &sub_bytes_written);
 
         if (err != SERIALIZER_OK) {
             return err;
         }
+
+        tlv_el.length = (uint32_t) sub_bytes_written;
     } break;
 
     default:
         return SERIALIZER_ERROR_INVALID_TYPE;
+    }
+
+    if (buffer_size < TLV_SIZEOF(&tlv_el)) {
+        return SERIALIZER_ERROR_BUFFER_TOO_SMALL;
     }
 
     // copy data
