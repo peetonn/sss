@@ -127,7 +127,8 @@ void tlv_decode_deserializer_cb(
         } break;
         case FIELD_TYPE_STRING: {
             // need allocation
-            dest_ptr = ctx->opts.allocator->allocate(decoded_el_data->length);
+            dest_ptr = ctx->opts.allocator->allocate(decoded_el_data->length,
+                                                     ctx->user_data);
 
             if (!dest_ptr) {
                 if (ctx->err == SERIALIZER_OK)
@@ -274,7 +275,7 @@ s_serializer_error s_deserialize(s_deserialize_options opts,
                 if (field->type == FIELD_TYPE_STRING) {
                     char* str = *(char**) ((uint8_t*) ctx.data + field->offset);
                     if (str) {
-                        opts.allocator->deallocate(str);
+                        opts.allocator->deallocate(str, opts.user_data);
                     }
                 }
             }

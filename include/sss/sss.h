@@ -94,8 +94,8 @@ typedef enum {
     SERIALIZER_ERROR_ALLOCATOR_FAILED = -5,
 } s_serializer_error;
 
-typedef void* (*s_allocator_allocate)(size_t);
-typedef void (*s_allocator_deallocate)(void*);
+typedef void* (*s_allocator_allocate)(size_t, void* user_data);
+typedef void (*s_allocator_deallocate)(void*, void* user_data);
 
 typedef struct {
     s_allocator_allocate allocate;
