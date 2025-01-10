@@ -126,19 +126,23 @@ void tlv_decode_deserializer_cb(
         } break;
         case FIELD_TYPE_STRING: {
             // need allocation
-            dest_ptr = ctx->opts.allocator->allocate(decoded_el_data->length,
-                                                     ctx->opts.user_data);
+            if (decoded_el_data->length) {
+                dest_ptr = ctx->opts.allocator->allocate(
+                    decoded_el_data->length, ctx->opts.user_data);
 
-            if (!dest_ptr) {
-                if (ctx->err == SERIALIZER_OK)
-                    ctx->err = SERIALIZER_ERROR_ALLOCATOR_FAILED;
+                if (!dest_ptr) {
+                    if (ctx->err == SERIALIZER_OK)
+                        ctx->err = SERIALIZER_ERROR_ALLOCATOR_FAILED;
 
-                return;
+                    return;
+                }
+
+                ctx->n_allocations++;
+                memset(dest_ptr, 0, decoded_el_data->length);
+                memcpy(dest_ptr, decoded_el_data->value,
+                       decoded_el_data->length);
             }
 
-            ctx->n_allocations++;
-            memset(dest_ptr, 0, decoded_el_data->length);
-            memcpy(dest_ptr, decoded_el_data->value, decoded_el_data->length);
             *(char**) ((uint8_t*) data + field_info->offset) = dest_ptr;
         } break;
         case FIELD_TYPE_STRUCT: {

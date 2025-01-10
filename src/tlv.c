@@ -65,8 +65,16 @@ s_serializer_error s_tlv_encode_field(const s_field_info* field,
     case FIELD_TYPE_STRING: {
         if (field->type == FIELD_TYPE_STRING) {
             // include null terminator for strings
-            tlv_el.length = (uint32_t) strlen(*(const char**) field_data) + 1;
-            value_ptr = *(const char**) field_data;
+            const char* str = *(const char**) field_data;
+
+            if (str) {
+                tlv_el.length =
+                    (uint32_t) strlen(*(const char**) field_data) + 1;
+                value_ptr = *(const char**) field_data;
+            } else {
+                tlv_el.length = 0;
+                value_ptr = NULL;
+            }
         } else {
             tlv_el.length = (uint32_t) field->size;
             value_ptr = field_data;
