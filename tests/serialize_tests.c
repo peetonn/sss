@@ -62,6 +62,50 @@ void test_serialize_deserialize_simple_struct() {
     TEST_ASSERT_EQUAL_INT(0x04, deserialized_ss.blob[3]);
 }
 
+void test_serialize_deserialize_with_empty_and_null_string() {
+    simple_struct ss = {
+        .id = 42,
+        .value = 3.14f,
+        .active = true,
+        .name = "",
+        .passport_number = NULL,
+        .blob = {0x01, 0x02, 0x03, 0x04},
+    };
+
+    uint8_t buffer[1024];
+    size_t bytes_written = 0;
+
+    const s_type_info* info = S_GET_STRUCT_TYPE_INFO(simple_struct);
+    s_serialize_options opts = {0};
+    s_serializer_error err =
+        s_serialize(opts, S_GET_STRUCT_TYPE_INFO(simple_struct), &ss, buffer,
+                    sizeof(buffer), &bytes_written);
+
+    TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+    TEST_ASSERT_EQUAL(102, bytes_written);
+
+    simple_struct deserialized_ss = {0};
+
+    s_deserialize_options dopts = {
+        .format = FORMAT_C_STRUCT,
+        .allocator = &g_default_allocator,
+    };
+
+    err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(simple_struct),
+                        &deserialized_ss, buffer, bytes_written);
+
+    TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+    TEST_ASSERT_EQUAL_INT(42, deserialized_ss.id);
+    TEST_ASSERT_EQUAL_FLOAT(3.14f, deserialized_ss.value);
+    TEST_ASSERT_EQUAL_INT(1, deserialized_ss.active);
+    TEST_ASSERT_EQUAL_STRING("", deserialized_ss.name);
+    TEST_ASSERT_NULL(deserialized_ss.passport_number);
+    TEST_ASSERT_EQUAL_INT(0x01, deserialized_ss.blob[0]);
+    TEST_ASSERT_EQUAL_INT(0x02, deserialized_ss.blob[1]);
+    TEST_ASSERT_EQUAL_INT(0x03, deserialized_ss.blob[2]);
+    TEST_ASSERT_EQUAL_INT(0x04, deserialized_ss.blob[3]);
+}
+
 void test_serialize_deserialize_nested_struct() {
     nested_struct ns = {
         .id = ENUM_VALUE_1,
@@ -485,6 +529,7 @@ int main() {
     UNITY_BEGIN();
 
     RUN_TEST(test_serialize_deserialize_simple_struct);
+    RUN_TEST(test_serialize_deserialize_with_empty_and_null_string);
     RUN_TEST(test_serialize_deserialize_nested_struct);
     RUN_TEST(test_serialize_deserialize_super_nested_struct);
     RUN_TEST(test_serialize_deserialize_union_structs);
