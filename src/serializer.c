@@ -28,7 +28,6 @@ typedef struct {
     int tlv_el_idx;
     int prev_level;
     const s_type_info* info;
-    void* user_data;
     s_deserialize_options opts;
     uint8_t* data;
     int n_allocations;
@@ -128,7 +127,7 @@ void tlv_decode_deserializer_cb(
         case FIELD_TYPE_STRING: {
             // need allocation
             dest_ptr = ctx->opts.allocator->allocate(decoded_el_data->length,
-                                                     ctx->user_data);
+                                                     ctx->opts.user_data);
 
             if (!dest_ptr) {
                 if (ctx->err == SERIALIZER_OK)
@@ -156,7 +155,7 @@ void tlv_decode_deserializer_cb(
         if (ctx->opts.custom_deserializer) {
             ctx->opts.custom_deserializer(
                 decoded_el_data->idx, lvl, decoded_el_data->length,
-                decoded_el_data->value, field_info->type, ctx->user_data);
+                decoded_el_data->value, field_info->type, ctx->opts.user_data);
         }
     } break;
 
@@ -256,7 +255,6 @@ s_serializer_error s_deserialize(s_deserialize_options opts,
     s_deserialize_context ctx = {
         .tlv_el_idx = 0,
         .info = info,
-        .user_data = data,
         .opts = opts,
         .data = data,
         .n_allocations = 0,
