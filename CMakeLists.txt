@@ -72,8 +72,6 @@ install(TARGETS ${LIB_NAME}
 )
 
 # Tests
-include(CTest)
-
 if (BUILD_TESTING)
     set(SSS_BUILD_TESTS_default ON)
 else()
