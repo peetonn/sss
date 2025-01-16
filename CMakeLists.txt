@@ -57,10 +57,12 @@ set_target_properties(${LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 set_target_properties(${LIB_NAME} PROPERTIES PUBLIC_HEADER "include/sss/sss.h")
 target_include_directories(${LIB_NAME}
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+        "$<INSTALL_INTERFACE:include>"
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
 
 # Install
 install(TARGETS ${LIB_NAME}
