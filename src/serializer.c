@@ -44,6 +44,7 @@ void tlv_decode_deserializer_cb(
         const s_type_info* type_info;
         int last_field_idx;
         void* data;
+        uint32_t pending_array_el_count;
     } type_info_stack[MAX_NESTED_LEVELS] = {{NULL, ctx->info, 0, ctx->data}};
 
     // find field_info for current element
@@ -62,7 +63,8 @@ void tlv_decode_deserializer_cb(
                 continue;
             }
 
-            if (type_info->fields[field_idx].type == FIELD_TYPE_STRUCT) {
+            switch (type_info->fields[field_idx].type) {
+            case FIELD_TYPE_STRUCT: {
                 data = (uint8_t*) data + type_info->fields[field_idx].offset;
 
                 type_info_stack[lvl].last_field_idx = field_idx;
@@ -74,21 +76,107 @@ void tlv_decode_deserializer_cb(
                     type_info->fields[field_idx].struct_type_info;
                 type_info_stack[lvl].last_field_idx = 0;
                 type_info_stack[lvl].data = data;
+                type_info_stack[lvl].pending_array_el_count = 0;
 
                 parent_info = type_info_stack[lvl].parent_info;
                 type_info = type_info_stack[lvl].type_info;
                 field_idx = 0;
 
                 continue;
-            } else {
+            } break;
+            case FIELD_TYPE_ARRAY: { // only handle struct arrays, otherwise --
+                                     // fall through
+                bool is_struct_array =
+                    type_info->fields[field_idx].struct_type_info;
+                bool is_dynamic = type_info->fields[field_idx].opts &
+                                  S_FIELD_OPT_ARRAY_DYNAMIC;
+
+                if (is_struct_array) {
+                    uint32_t array_size = 0;
+                    const uint8_t* size_field_data =
+                        (const uint8_t*) data +
+                        type_info->fields[field_idx]
+                            .array_field_info.size_field_offset;
+
+                    switch (type_info->fields[field_idx]
+                                .array_field_info.size_field_size) {
+                    case 1: {
+                        array_size = (uint32_t) *(uint8_t*) size_field_data;
+                    } break;
+                    case 2: {
+                        array_size = (uint32_t) *(uint16_t*) size_field_data;
+                    } break;
+                    case 4:
+                    case 8: {
+                        array_size = *(uint32_t*) size_field_data;
+                    } break;
+                    default:
+                        ctx->err = SERIALIZER_ERROR_INVALID_TYPE;
+                        return;
+                    }
+
+                    if (is_dynamic) {
+                        void** array_data_ptr =
+                            (void**) ((uint8_t*) data +
+                                      type_info->fields[field_idx].offset);
+
+                        if (!*array_data_ptr && array_size) {
+                            *array_data_ptr = ctx->opts.allocator->allocate(
+                                array_size * type_info->fields[field_idx]
+                                                 .struct_type_info->type_size,
+                                ctx->opts.user_data);
+                        }
+
+                        if (!*array_data_ptr) {
+                            ctx->err = SERIALIZER_ERROR_ALLOCATOR_FAILED;
+                            return;
+                        }
+
+                        data = *array_data_ptr;
+                    } else {
+                        data = (uint8_t*) data +
+                               type_info->fields[field_idx].offset;
+                    }
+
+                    type_info_stack[lvl].last_field_idx = field_idx;
+                    lvl += 1;
+
+                    // push array field info
+                    type_info_stack[lvl].parent_info =
+                        &type_info->fields[field_idx];
+                    type_info_stack[lvl].type_info =
+                        type_info->fields[field_idx].struct_type_info;
+                    type_info_stack[lvl].last_field_idx = 0;
+                    type_info_stack[lvl].data = data;
+                    type_info_stack[lvl].pending_array_el_count = array_size;
+
+                    parent_info = type_info_stack[lvl].parent_info;
+                    type_info = type_info_stack[lvl].type_info;
+                    field_idx = 0;
+
+                    continue;
+                    // break;
+                }
+            } // fallthrough for non-struct arrays
+            default: {
                 if (tlv_idx == ctx->tlv_el_idx) {
                     field_info = &type_info->fields[field_idx];
                 } else {
                     tlv_idx++;
                     field_idx++;
                 }
+            } break;
             }
         } else {
+            // if we're iterating array, check if we're not done yet
+            if (type_info_stack[lvl].pending_array_el_count > 1) {
+                type_info_stack[lvl].pending_array_el_count -= 1;
+                // shift data pointer to next element
+                data += type_info_stack[lvl].type_info->type_size;
+                field_idx = 0;
+                continue;
+            }
+
             lvl -= 1;
 
             if (lvl < 0) {
@@ -144,6 +232,35 @@ void tlv_decode_deserializer_cb(
             }
 
             *(char**) ((uint8_t*) data + field_info->offset) = dest_ptr;
+        } break;
+        case FIELD_TYPE_ARRAY: {
+            // check if array is dynamic
+            if (field_info->struct_type_info) {
+                ctx->err = SERIALIZER_ERROR_INVALID_TYPE;
+                return;
+            }
+
+            if (field_info->opts & S_FIELD_OPT_ARRAY_DYNAMIC) {
+                dest_ptr = ctx->opts.allocator->allocate(
+                    decoded_el_data->length, ctx->opts.user_data);
+
+                if (!dest_ptr) {
+                    if (ctx->err == SERIALIZER_OK)
+                        ctx->err = SERIALIZER_ERROR_ALLOCATOR_FAILED;
+
+                    return;
+                }
+
+                ctx->n_allocations++;
+                memcpy(dest_ptr, decoded_el_data->value,
+                       decoded_el_data->length);
+
+                *(void**) ((uint8_t*) data + field_info->offset) = dest_ptr;
+            } else {
+                dest_ptr = (uint8_t*) data + field_info->offset;
+                memcpy(dest_ptr, decoded_el_data->value,
+                       decoded_el_data->length);
+            }
         } break;
         case FIELD_TYPE_STRUCT: {
             ctx->err = SERIALIZER_ERROR_INVALID_TYPE;

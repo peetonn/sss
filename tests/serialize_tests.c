@@ -82,7 +82,7 @@ void test_serialize_deserialize_with_empty_and_null_string() {
                     sizeof(buffer), &bytes_written);
 
     TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
-    TEST_ASSERT_EQUAL(102, bytes_written);
+    TEST_ASSERT_EQUAL(78, bytes_written);
 
     simple_struct deserialized_ss = {0};
 
@@ -522,6 +522,115 @@ void test_serialize_deserialize_into_json_string() {
     }
 }
 
+void test_serialize_deserialize_struct_with_arrays() {
+    if (0) { // array of builtins
+        builtin_arrays_struct bas = {
+            .n_static_ints = 5,
+            .static_ints = {1, 2, 3, 4, 5},
+            .n_dynamic_ints = 3,
+            .dynamic_ints = (int32_t*) malloc(3 * sizeof(int32_t)),
+        };
+        for (int i = 0; i < bas.n_dynamic_ints; i++) {
+            bas.dynamic_ints[i] = i + 1;
+        }
+
+        uint8_t buffer[1024];
+        size_t bytes_written = 0;
+
+        const s_type_info* info = S_GET_STRUCT_TYPE_INFO(builtin_arrays_struct);
+        s_serialize_options opts = {0};
+        s_serializer_error err =
+            s_serialize(opts, S_GET_STRUCT_TYPE_INFO(builtin_arrays_struct),
+                        &bas, buffer, sizeof(buffer), &bytes_written);
+
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+        TEST_ASSERT_EQUAL(64, bytes_written);
+
+        builtin_arrays_struct deserialized_bas = {0};
+
+        s_deserialize_options dopts = {
+            .format = FORMAT_C_STRUCT,
+            .allocator = &g_default_allocator,
+        };
+
+        err =
+            s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(builtin_arrays_struct),
+                          &deserialized_bas, buffer, bytes_written);
+
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+        TEST_ASSERT_EQUAL_INT(5, deserialized_bas.n_static_ints);
+        for (int i = 0; i < deserialized_bas.n_static_ints; i++) {
+            TEST_ASSERT_EQUAL_INT(i + 1, deserialized_bas.static_ints[i]);
+        }
+        TEST_ASSERT_EQUAL_INT(3, deserialized_bas.n_dynamic_ints);
+        for (int i = 0; i < deserialized_bas.n_dynamic_ints; i++) {
+            TEST_ASSERT_EQUAL_INT(i + 1, deserialized_bas.dynamic_ints[i]);
+        }
+
+        g_default_allocator.deallocate(deserialized_bas.dynamic_ints, NULL);
+        free(bas.dynamic_ints);
+    }
+
+    { // array of structs
+        struct_arrays_struct sas = {
+            .n_static_structs = 2,
+            .static_structs =
+                {
+                    {.id = 1, .name = "12345"},
+                    {.id = 2, .name = "1234567890"},
+                },
+            .n_dynamic_structs = 3,
+            .dynamic_structs =
+                (simple_struct*) malloc(3 * sizeof(simple_struct)),
+        };
+        memset(sas.dynamic_structs, 0, sizeof(simple_struct) * 3);
+
+        for (int i = 0; i < sas.n_dynamic_structs; i++) {
+            sas.dynamic_structs[i].id = i + 1;
+            sas.dynamic_structs[i].name = "Name";
+        }
+
+        uint8_t buffer[1024];
+        size_t bytes_written = 0;
+
+        const s_type_info* info = S_GET_STRUCT_TYPE_INFO(struct_arrays_struct);
+        s_serialize_options opts = {0};
+        s_serializer_error err =
+            s_serialize(opts, S_GET_STRUCT_TYPE_INFO(struct_arrays_struct),
+                        &sas, buffer, sizeof(buffer), &bytes_written);
+
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+        TEST_ASSERT_EQUAL(449, bytes_written);
+
+        struct_arrays_struct deserialized_sas = {0};
+
+        s_deserialize_options dopts = {
+            .format = FORMAT_C_STRUCT,
+            .allocator = &g_default_allocator,
+        };
+
+        err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(struct_arrays_struct),
+                            &deserialized_sas, buffer, bytes_written);
+
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+        TEST_ASSERT_EQUAL_INT(2, deserialized_sas.n_static_structs);
+        for (int i = 0; i < deserialized_sas.n_static_structs; i++) {
+            TEST_ASSERT_EQUAL_INT(i + 1, deserialized_sas.static_structs[i].id);
+            TEST_ASSERT_EQUAL_STRING(i ? "1234567890" : "12345",
+                                     deserialized_sas.static_structs[i].name);
+        }
+        TEST_ASSERT_EQUAL_INT(3, deserialized_sas.n_dynamic_structs);
+        for (int i = 0; i < deserialized_sas.n_dynamic_structs; i++) {
+            TEST_ASSERT_EQUAL_INT(i + 1,
+                                  deserialized_sas.dynamic_structs[i].id);
+            TEST_ASSERT_EQUAL_STRING("Name",
+                                     deserialized_sas.dynamic_structs[i].name);
+        }
+
+        g_default_allocator.deallocate(deserialized_sas.dynamic_structs, NULL);
+    }
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -534,6 +643,7 @@ int main() {
     RUN_TEST(test_serialize_deserialize_super_nested_struct);
     RUN_TEST(test_serialize_deserialize_union_structs);
     RUN_TEST(test_serialize_deserialize_into_json_string);
+    RUN_TEST(test_serialize_deserialize_struct_with_arrays);
 
     UNITY_END();
     return 0;

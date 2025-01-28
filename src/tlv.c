@@ -68,9 +68,8 @@ s_serializer_error s_tlv_encode_field(const s_field_info* field,
             const char* str = *(const char**) field_data;
 
             if (str) {
-                tlv_el.length =
-                    (uint32_t) strlen(*(const char**) field_data) + 1;
-                value_ptr = *(const char**) field_data;
+                tlv_el.length = (uint32_t) strlen(str) + 1;
+                value_ptr = str;
             } else {
                 tlv_el.length = 0;
                 value_ptr = NULL;
@@ -107,6 +106,69 @@ s_serializer_error s_tlv_encode_field(const s_field_info* field,
         }
 
         tlv_el.length = (uint32_t) sub_bytes_written;
+    } break;
+
+    case FIELD_TYPE_ARRAY: {
+        uint32_t array_size = 0;
+        const uint8_t* size_field_data =
+            (const uint8_t*) data + field->array_field_info.size_field_offset;
+
+        switch (field->array_field_info.size_field_size) {
+        case 1: {
+            array_size = (uint32_t) *(uint8_t*) size_field_data;
+        } break;
+        case 2: {
+            array_size = (uint32_t) (*(uint16_t*) size_field_data);
+        } break;
+        case 4:
+        case 8: {
+            array_size = (uint32_t) (*(uint32_t*) size_field_data);
+        } break;
+        default:
+            return SERIALIZER_ERROR_INVALID_TYPE;
+        }
+
+        bool is_dynamic = field->opts & S_FIELD_OPT_ARRAY_DYNAMIC;
+        bool is_struct_array = field->struct_type_info;
+
+        tlv_el.tag = is_struct_array ? TLV_TAG_NESTED_LIST : TLV_TAG_LIST;
+
+        if (!is_struct_array) {
+            // just serialize as a blob
+            tlv_el.length = array_size * field->size;
+            value_ptr = is_dynamic ? *(const void**) field_data : field_data;
+        } else {
+            const s_type_info* sub_info = field->struct_type_info;
+
+            value_ptr = NULL;
+
+            if (buffer_size < TLV_SIZEOF_TL) {
+                return SERIALIZER_ERROR_BUFFER_TOO_SMALL;
+            }
+
+            // encode structs directly into buffer
+            size_t sub_bytes_written = 0;
+
+            for (uint32_t i = 0; i < array_size; i++) {
+                const void* array_element_data =
+                    is_dynamic ? *(const void**) field_data + field->size * i
+                               : field_data + field->size * i;
+                size_t bytes_written = 0;
+                s_serializer_error err = s_tlv_encode(
+                    sub_info, array_element_data,
+                    tlv_buffer + TLV_SIZEOF_TL + sub_bytes_written,
+                    buffer_size - TLV_SIZEOF_TL - sub_bytes_written,
+                    &bytes_written);
+
+                if (err != SERIALIZER_OK) {
+                    return err;
+                }
+
+                sub_bytes_written += bytes_written;
+            }
+
+            tlv_el.length = (uint32_t) sub_bytes_written;
+        }
     } break;
 
     default:
@@ -168,7 +230,8 @@ s_serializer_error s_tlv_decode_element(int idx, int level,
     uint32_t length = ntohl(tlv_el->length);
 
     switch (tag) {
-    case TLV_TAG_FIELD: {
+    case TLV_TAG_FIELD:
+    case TLV_TAG_LIST: {
         s_tlv_decoded_element_data decoded_el_data = {
             .idx = idx,
             .level = level,
@@ -178,6 +241,10 @@ s_serializer_error s_tlv_decode_element(int idx, int level,
         };
 
         cb(&decoded_el_data, user_data);
+    } break;
+
+    case TLV_TAG_NESTED_LIST: {
+        s_tlv_decode_level(level + 1, tlv_el->value, length, cb, user_data);
     } break;
 
     case TLV_TAG_NESTED: {

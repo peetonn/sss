@@ -9,13 +9,28 @@
 
 #include <sss/sss.h>
 #include <sss/tlv.h>
+
 // unity
 #include <unity.h>
+
+// system includes
+#include <stdlib.h>
 
 struct decode_data {
     int tlv_el_num;
     s_tlv_decoded_element_data tlv_els[1024];
 };
+
+void print_decode_data_debug(struct decode_data* data) {
+    int total_length = 0;
+    for (int i = 0; i < data->tlv_el_num; i++) {
+        printf("%2d - idx: %2d, level: %2d, type: 0x%02x, length: %4d\n", i,
+               data->tlv_els[i].idx, data->tlv_els[i].level,
+               data->tlv_els[i].type, data->tlv_els[i].length);
+        total_length += data->tlv_els[i].length;
+    }
+    printf("Total value length: %d\n", total_length);
+}
 
 void on_tlv_decode_element(const s_tlv_decoded_element_data* tlv_el,
                            void* user_data) {
@@ -49,6 +64,8 @@ void test_tlv_encode_decode_simple_struct() {
 
     TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
     TEST_ASSERT_EQUAL(6, data.tlv_el_num);
+
+    print_decode_data_debug(&data);
 
     { // check each decoded element
         TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].idx);
@@ -355,6 +372,219 @@ void test_tlv_encode_decode_partial_struct() {
     }
 }
 
+void test_tlv_encode_decode_struct_with_builtin_arrays() {
+    builtin_arrays_struct bas = {
+        .n_static_ints = 5,
+        .static_ints = {1, 2, 3, 4, 5},
+        .n_dynamic_ints = 3,
+        .dynamic_ints = (int32_t*) malloc(3 * sizeof(int32_t)),
+    };
+    for (int i = 0; i < bas.n_dynamic_ints; i++) {
+        bas.dynamic_ints[i] = i + 1;
+    }
+
+    uint8_t buffer[1024];
+    size_t bytes_written = 0;
+
+    const s_type_info* info = S_GET_STRUCT_TYPE_INFO(builtin_arrays_struct);
+    s_serializer_error err =
+        s_tlv_encode(info, &bas, buffer, sizeof(buffer), &bytes_written);
+
+    TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+    TEST_ASSERT_EQUAL(64, bytes_written);
+
+    struct decode_data data = {0};
+
+    err = s_tlv_decode(buffer, bytes_written, on_tlv_decode_element, &data);
+    print_decode_data_debug(&data);
+
+    TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+    TEST_ASSERT_EQUAL(4, data.tlv_el_num);
+
+    { // check each decoded element
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].idx);
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].level);
+        TEST_ASSERT_EQUAL_INT(5, *(int*) data.tlv_els[0].value);
+
+        TEST_ASSERT_EQUAL_INT(1, data.tlv_els[1].idx);
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[1].level);
+        TEST_ASSERT_EQUAL_MEMORY(bas.static_ints, data.tlv_els[1].value,
+                                 bas.n_static_ints);
+
+        TEST_ASSERT_EQUAL_INT(2, data.tlv_els[2].idx);
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[2].level);
+        TEST_ASSERT_EQUAL_INT(3, *(int*) data.tlv_els[2].value);
+
+        TEST_ASSERT_EQUAL_INT(3, data.tlv_els[3].idx);
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[3].level);
+        TEST_ASSERT_EQUAL_MEMORY(bas.dynamic_ints, data.tlv_els[3].value,
+                                 bas.n_dynamic_ints * sizeof(int32_t));
+    }
+}
+
+void test_tlv_encode_decode_struct_with_struct_arrays() {
+    struct_arrays_struct sas = {
+        .n_static_structs = 2,
+        .static_structs =
+            {
+                {.id = 1, .name = "12345"},
+                {.id = 2, .name = "1234567890"},
+            },
+        .n_dynamic_structs = 3,
+        .dynamic_structs = (simple_struct*) malloc(3 * sizeof(simple_struct)),
+    };
+    memset(sas.dynamic_structs, 0, sizeof(simple_struct) * 3);
+
+    for (int i = 0; i < sas.n_dynamic_structs; i++) {
+        sas.dynamic_structs[i].id = i + 1;
+        sas.dynamic_structs[i].name = "Name";
+    }
+
+    uint8_t buffer[1024];
+    size_t bytes_written = 0;
+
+    const s_type_info* info = S_GET_STRUCT_TYPE_INFO(struct_arrays_struct);
+    s_serializer_error err =
+        s_tlv_encode(info, &sas, buffer, sizeof(buffer), &bytes_written);
+
+    TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+    TEST_ASSERT_EQUAL(449, bytes_written);
+
+    struct decode_data data = {0};
+
+    err = s_tlv_decode(buffer, bytes_written, on_tlv_decode_element, &data);
+
+    TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+
+    print_decode_data_debug(&data);
+    TEST_ASSERT_EQUAL(32, data.tlv_el_num);
+
+    { // check each decoded element
+
+        // n_static_structs
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].level);
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].idx);
+        TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[0].type);
+        TEST_ASSERT_EQUAL_INT(2, *(int*) data.tlv_els[0].value);
+
+        // static structs
+        int i = 0;
+        int elIdx = 1;
+        do {
+            int idx = i * 6;
+
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[elIdx].level);
+            TEST_ASSERT_EQUAL_INT(idx, data.tlv_els[elIdx].idx);
+            TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[elIdx].type);
+            TEST_ASSERT_EQUAL_INT(sas.static_structs[i].id,
+                                  *(int*) data.tlv_els[elIdx++].value);
+
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[elIdx].level);
+            TEST_ASSERT_EQUAL_INT(idx + 1, data.tlv_els[elIdx].idx);
+            TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[elIdx].type);
+            TEST_ASSERT_EQUAL_FLOAT(sas.static_structs[i].value,
+                                    *(float*) data.tlv_els[elIdx++].value);
+
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[elIdx].level);
+            TEST_ASSERT_EQUAL_INT(idx + 2, data.tlv_els[elIdx].idx);
+            TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[elIdx].type);
+            TEST_ASSERT_EQUAL_INT(sas.static_structs[i].active,
+                                  *(bool*) data.tlv_els[elIdx++].value);
+
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[elIdx].level);
+            TEST_ASSERT_EQUAL_INT(idx + 3, data.tlv_els[elIdx].idx);
+            TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[elIdx].type);
+            if (sas.static_structs[i].name)
+                TEST_ASSERT_EQUAL_STRING(
+                    sas.static_structs[i].name,
+                    (const char*) data.tlv_els[elIdx++].value);
+            else
+                TEST_ASSERT_EQUAL_INT(0, data.tlv_els[elIdx++].length);
+
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[elIdx].level);
+            TEST_ASSERT_EQUAL_INT(idx + 4, data.tlv_els[elIdx].idx);
+            TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[elIdx].type);
+
+            if (sas.static_structs[i].passport_number)
+                TEST_ASSERT_EQUAL_STRING(
+                    sas.static_structs[i].passport_number,
+                    (const char*) data.tlv_els[elIdx++].value);
+            else
+                TEST_ASSERT_EQUAL_INT(0, data.tlv_els[elIdx++].length);
+
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[elIdx].level);
+            TEST_ASSERT_EQUAL_INT(idx + 5, data.tlv_els[elIdx].idx);
+            TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[elIdx].type);
+            TEST_ASSERT_EQUAL_MEMORY(sas.static_structs[i].blob,
+                                     data.tlv_els[elIdx++].value,
+                                     sizeof(sas.static_structs[i].blob));
+
+            i += 1;
+        } while (i < sas.n_static_structs);
+
+        // n_dynamic_structs
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[elIdx].level);
+        TEST_ASSERT_EQUAL_INT(2, data.tlv_els[elIdx].idx);
+
+        // dynamic structs
+        i = 0;
+        elIdx += 1;
+
+        do {
+            int idx = i * 6;
+
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[elIdx].level);
+            TEST_ASSERT_EQUAL_INT(idx, data.tlv_els[elIdx].idx);
+            TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[elIdx].type);
+            TEST_ASSERT_EQUAL_INT(sas.dynamic_structs[i].id,
+                                  *(int*) data.tlv_els[elIdx++].value);
+
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[elIdx].level);
+            TEST_ASSERT_EQUAL_INT(idx + 1, data.tlv_els[elIdx].idx);
+            TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[elIdx].type);
+            TEST_ASSERT_EQUAL_FLOAT(sas.dynamic_structs[i].value,
+                                    *(float*) data.tlv_els[elIdx++].value);
+
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[elIdx].level);
+            TEST_ASSERT_EQUAL_INT(idx + 2, data.tlv_els[elIdx].idx);
+            TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[elIdx].type);
+            TEST_ASSERT_EQUAL_INT(sas.dynamic_structs[i].active,
+                                  *(bool*) data.tlv_els[elIdx++].value);
+
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[elIdx].level);
+            TEST_ASSERT_EQUAL_INT(idx + 3, data.tlv_els[elIdx].idx);
+            TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[elIdx].type);
+            if (sas.dynamic_structs[i].name)
+                TEST_ASSERT_EQUAL_STRING(
+                    sas.dynamic_structs[i].name,
+                    (const char*) data.tlv_els[elIdx++].value);
+            else
+                TEST_ASSERT_EQUAL_INT(0, data.tlv_els[elIdx++].length);
+
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[elIdx].level);
+            TEST_ASSERT_EQUAL_INT(idx + 4, data.tlv_els[elIdx].idx);
+            TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[elIdx].type);
+
+            if (sas.dynamic_structs[i].passport_number)
+                TEST_ASSERT_EQUAL_STRING(
+                    sas.dynamic_structs[i].passport_number,
+                    (const char*) data.tlv_els[elIdx++].value);
+            else
+
+                TEST_ASSERT_EQUAL_INT(0, data.tlv_els[elIdx++].length);
+
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[elIdx].level);
+            TEST_ASSERT_EQUAL_INT(idx + 5, data.tlv_els[elIdx].idx);
+            TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[elIdx].type);
+            TEST_ASSERT_EQUAL_MEMORY(sas.dynamic_structs[i].blob,
+                                     data.tlv_els[elIdx++].value,
+                                     sizeof(sas.dynamic_structs[i].blob));
+
+            i += 1;
+        } while (i < sas.n_dynamic_structs);
+    }
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -366,6 +596,8 @@ int main() {
     RUN_TEST(test_tlv_encode_decode_nested_union_struct);
     RUN_TEST(test_tlv_encode_buffer_too_small);
     RUN_TEST(test_tlv_encode_decode_partial_struct);
+    RUN_TEST(test_tlv_encode_decode_struct_with_builtin_arrays);
+    RUN_TEST(test_tlv_encode_decode_struct_with_struct_arrays);
 
     UNITY_END();
     return 0;

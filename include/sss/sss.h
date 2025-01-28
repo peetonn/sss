@@ -44,8 +44,7 @@ typedef enum {
 
     FIELD_TYPE_STRING, // ANSI string
 
-    // FIELD_TYPE_ARRAY,  // fixed size arrays (C arrays)
-    // FIELD_TYPE_VECTOR, // dynamic arrays (C pointer)
+    FIELD_TYPE_ARRAY, // array of elements
 
     FIELD_TYPE_STRUCT,
 } s_field_type;
@@ -55,7 +54,8 @@ typedef enum {
     S_FIELD_OPT_OPTIONAL = 1 << 0,
     S_FIELD_OPT_COMPRESSED = 1 << 1,
     S_FIELD_OPT_ENCRYPTED = 1 << 2,
-    S_FIELD_OPT_ARRAY = 1 << 3,
+    S_FIELD_OPT_ARRAY_DYNAMIC = 1 << 3,
+
 } s_field_opts;
 
 struct s_type_info;
@@ -75,6 +75,10 @@ typedef struct {
             int tag_value_int;
             const char* tag_value_string;
         } optional_field_info;
+        struct {
+            size_t size_field_size;
+            size_t size_field_offset;
+        } array_field_info;
     };
 } s_field_info;
 
@@ -157,7 +161,8 @@ s_serializer_error s_deserialize(s_deserialize_options opts,
         struct_type dummy;                              \
         info.type_name = #TYPE;                         \
         info.fields = fields;                           \
-        info.field_count = 0;
+        info.field_count = 0;                           \
+        info.type_size = sizeof(struct_type);
 
 #define S_SERIALIZE_END() \
     initialized = true;   \
@@ -186,7 +191,7 @@ s_serializer_error s_deserialize(s_deserialize_options opts,
             "Type mismatch");                                           \
     } while (0)
 #else
-#define S_ASSERT_TYPE(TYPE, VALUE) ((TYPE*) 0 == &(VALUE))
+#define S_ASSERT_TYPE(TYPE, VALUE) ((TYPE*) {0} = &(VALUE))
 #endif
 #else
 #define S_ASSERT_TYPE(TYPE, VALUE)
@@ -194,6 +199,7 @@ s_serializer_error s_deserialize(s_deserialize_options opts,
 
 #define GET_MACRO(_1, _2, NAME, ...) NAME
 #define GET_MACRO_3(_1, _2, _3, NAME, ...) NAME
+#define GET_MACRO_4(_1, _2, _3, _4, NAME, ...) NAME
 
 #define S_FIELD_INT8_LABELED(NAME, FIELD_LABEL, ...) \
     S_ASSERT_TYPE(int8_t, dummy.NAME);               \
@@ -365,4 +371,64 @@ s_serializer_error s_deserialize(s_deserialize_options opts,
         assert(field_found && "Field " #NAME " not found in union");          \
     }
 
+#define S_FIELD_ARRAY_STATIC_LABELED(NAME, SIZE, FIELD_LABEL, ...)    \
+    S_FIELD_LABELED(NAME, FIELD_TYPE_ARRAY, FIELD_LABEL);             \
+    fields[info.field_count - 1].size = sizeof(dummy.NAME[0]);        \
+    fields[info.field_count - 1].array_field_info.size_field_size =   \
+        sizeof(dummy.SIZE);                                           \
+    fields[info.field_count - 1].array_field_info.size_field_offset = \
+        offsetof(struct_type, SIZE);
+#define S_FIELD_ARRAY_STATIC(...)                          \
+    GET_MACRO_3(__VA_ARGS__, S_FIELD_ARRAY_STATIC_LABELED, \
+                S_FIELD_ARRAY_STATIC_LABELED)(__VA_ARGS__, NULL)
+
+#define S_FIELD_ARRAY_DYNAMIC_LABELED(NAME, SIZE, FIELD_LABEL, ...)   \
+    S_FIELD_LABELED(NAME, FIELD_TYPE_ARRAY, FIELD_LABEL);             \
+    fields[info.field_count - 1].size = sizeof(*dummy.NAME);          \
+    fields[info.field_count - 1].opts |= S_FIELD_OPT_ARRAY_DYNAMIC;   \
+    fields[info.field_count - 1].array_field_info.size_field_size =   \
+        sizeof(dummy.SIZE);                                           \
+    fields[info.field_count - 1].array_field_info.size_field_offset = \
+        offsetof(struct_type, SIZE);
+#define S_FIELD_ARRAY_DYNAMIC(...)                          \
+    GET_MACRO_3(__VA_ARGS__, S_FIELD_ARRAY_DYNAMIC_LABELED, \
+                S_FIELD_ARRAY_DYNAMIC_LABELED)(__VA_ARGS__, NULL)
+
+#define S_FIELD_STRUCT_ARRAY_STATIC_LABELED(NAME, SIZE, TYPE, FIELD_LABEL, \
+                                            ...)                           \
+    assert(info.field_count < S_MAX_FIELDS && "Too many fields");          \
+    fields[info.field_count++] =                                           \
+        (s_field_info) {.name = #NAME,                                     \
+                        .label = FIELD_LABEL,                              \
+                        .type = FIELD_TYPE_ARRAY,                          \
+                        .offset = offsetof(struct_type, NAME),             \
+                        .size = sizeof(dummy.NAME[0]),                     \
+                        .opts = S_FIELD_OPT_NONE,                          \
+                        .struct_type_info = S_GET_STRUCT_TYPE_INFO(TYPE)}; \
+    fields[info.field_count - 1].array_field_info.size_field_size =        \
+        sizeof(dummy.SIZE);                                                \
+    fields[info.field_count - 1].array_field_info.size_field_offset =      \
+        offsetof(struct_type, SIZE);
+#define S_FIELD_STRUCT_ARRAY_STATIC(...)                          \
+    GET_MACRO_4(__VA_ARGS__, S_FIELD_STRUCT_ARRAY_STATIC_LABELED, \
+                S_FIELD_STRUCT_ARRAY_STATIC_LABELED)(__VA_ARGS__, NULL)
+
+#define S_FIELD_STRUCT_ARRAY_DYNAMIC_LABELED(NAME, SIZE, TYPE, FIELD_LABEL, \
+                                             ...)                           \
+    assert(info.field_count < S_MAX_FIELDS && "Too many fields");           \
+    fields[info.field_count++] =                                            \
+        (s_field_info) {.name = #NAME,                                      \
+                        .label = FIELD_LABEL,                               \
+                        .type = FIELD_TYPE_ARRAY,                           \
+                        .offset = offsetof(struct_type, NAME),              \
+                        .size = sizeof(*dummy.NAME),                        \
+                        .opts = S_FIELD_OPT_ARRAY_DYNAMIC,                  \
+                        .struct_type_info = S_GET_STRUCT_TYPE_INFO(TYPE)};  \
+    fields[info.field_count - 1].array_field_info.size_field_size =         \
+        sizeof(dummy.SIZE);                                                 \
+    fields[info.field_count - 1].array_field_info.size_field_offset =       \
+        offsetof(struct_type, SIZE);
+#define S_FIELD_STRUCT_ARRAY_DYNAMIC(...)                          \
+    GET_MACRO_4(__VA_ARGS__, S_FIELD_STRUCT_ARRAY_DYNAMIC_LABELED, \
+                S_FIELD_STRUCT_ARRAY_DYNAMIC_LABELED)(__VA_ARGS__, NULL)
 #endif

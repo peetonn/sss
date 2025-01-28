@@ -50,4 +50,22 @@ typedef struct {
 } nested_union_struct;
 S_DEFINE_TYPE_INFO(nested_union_struct);
 
+// struct with builtin arrays
+typedef struct {
+    int32_t n_static_ints;
+    int32_t static_ints[32];
+    int32_t n_dynamic_ints;
+    int32_t* dynamic_ints;
+} builtin_arrays_struct;
+S_DEFINE_TYPE_INFO(builtin_arrays_struct);
+
+// struct with struct arrays
+typedef struct {
+    int32_t n_static_structs;
+    simple_struct static_structs[32];
+    int32_t n_dynamic_structs;
+    simple_struct* dynamic_structs;
+} struct_arrays_struct;
+S_DEFINE_TYPE_INFO(struct_arrays_struct);
+
 #endif
