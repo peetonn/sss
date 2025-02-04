@@ -406,8 +406,8 @@ void test_serialize_deserialize_into_json_string() {
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL_STRING(
-            "{\"id\":42,\"value\":3.140000,\"active\":true,\"name\":\"Hello, "
-            "World!\",\"passport_number\":\"1234567890\",\"blob\":[1,2,3,4,0,0,"
+            "{\"Id\":42,\"value\":3.140000,\"active\":true,\"name\":\"Hello, "
+            "World!\",\"PassportNumber\":\"1234567890\",\"Data\":[1,2,3,4,0,0,"
             "0,0,"
             "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}",
             deserialized_json);
@@ -451,9 +451,9 @@ void test_serialize_deserialize_into_json_string() {
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL_STRING(
-            "{\"id\":1,\"sub\":{\"id\":42,\"value\":3.140000,\"active\":true,"
-            "\"name\":\"Hello, World!\",\"passport_number\":\"1234567890\","
-            "\"blob\":[1,2,3,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
+            "{\"id\":1,\"sub\":{\"Id\":42,\"value\":3.140000,\"active\":true,"
+            "\"name\":\"Hello, World!\",\"PassportNumber\":\"1234567890\","
+            "\"Data\":[1,2,3,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
             "0,0,0,0]},\"name\":"
             "\"Hello, World2!\"}",
             deserialized_json);
@@ -510,20 +510,20 @@ void test_serialize_deserialize_into_json_string() {
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
         TEST_ASSERT_EQUAL_STRING(
-            "{\"sub\":{\"id\":1,\"sub\":{\"id\":42,\"value\":3.140000,"
-            "\"active\":true,\"name\":\"Hello, World!\",\"passport_number\":"
-            "\"1234567890\",\"blob\":[1,2,3,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
+            "{\"sub\":{\"id\":1,\"sub\":{\"Id\":42,\"value\":3.140000,"
+            "\"active\":true,\"name\":\"Hello, World!\",\"PassportNumber\":"
+            "\"1234567890\",\"Data\":[1,2,3,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
             "0,0,0,0,0,0,0,0,0,0,0,0,0,0]},\"name\":\"Hello, World2!\"},"
-            "\"id\":123,\"ss\":{\"id\":42,\"value\":3.140000,\"active\":true,"
-            "\"name\":\"Hello, World!\",\"passport_number\":\"1234567890\","
-            "\"blob\":[1,2,3,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
+            "\"id\":123,\"ss\":{\"Id\":42,\"value\":3.140000,\"active\":true,"
+            "\"name\":\"Hello, World!\",\"PassportNumber\":\"1234567890\","
+            "\"Data\":[1,2,3,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
             "0,0,0,0,0]}}",
             deserialized_json);
     }
 }
 
 void test_serialize_deserialize_struct_with_arrays() {
-    if (0) { // array of builtins
+    { // array of builtins
         builtin_arrays_struct bas = {
             .n_static_ints = 5,
             .static_ints = {1, 2, 3, 4, 5},
@@ -631,6 +631,107 @@ void test_serialize_deserialize_struct_with_arrays() {
     }
 }
 
+void test_serialize_deserialize_arrays_into_json_string() {
+    { // array of builtins
+        builtin_arrays_struct bas = {
+            .n_static_ints = 5,
+            .static_ints = {1, 2, 3, 4, 5},
+            .n_dynamic_ints = 3,
+            .dynamic_ints = (int32_t*) malloc(3 * sizeof(int32_t)),
+        };
+        for (int i = 0; i < bas.n_dynamic_ints; i++) {
+            bas.dynamic_ints[i] = i + 1;
+        }
+
+        uint8_t buffer[1024];
+        size_t bytes_written = 0;
+
+        const s_type_info* info = S_GET_STRUCT_TYPE_INFO(builtin_arrays_struct);
+        s_serialize_options opts = {0};
+        s_serializer_error err =
+            s_serialize(opts, S_GET_STRUCT_TYPE_INFO(builtin_arrays_struct),
+                        &bas, buffer, sizeof(buffer), &bytes_written);
+
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+        TEST_ASSERT_EQUAL(64, bytes_written);
+
+        char deserialized_json[1024] = {0};
+
+        s_deserialize_options dopts = {
+            .format = FORMAT_JSON_STRING,
+            .allocator = &g_default_allocator,
+        };
+
+        err =
+            s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(builtin_arrays_struct),
+                          deserialized_json, buffer, bytes_written);
+
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+        TEST_ASSERT_EQUAL_STRING("{\"n_static_ints\":5,\"StaticInts\":[1,2,3,"
+                                 "4,5],\"n_dynamic_ints\":"
+                                 "3,\"DynamicInts\":[1,2,3]}",
+                                 deserialized_json);
+
+        g_default_allocator.deallocate(bas.dynamic_ints, NULL);
+    }
+
+    { // array of structs
+        struct_arrays_struct sas = {
+            .n_static_structs = 2,
+            .static_structs =
+                {
+                    {.id = 1, .name = "12345"},
+                    {.id = 2, .name = "1234567890"},
+                },
+            .n_dynamic_structs = 3,
+            .dynamic_structs =
+                (simple_struct*) malloc(3 * sizeof(simple_struct)),
+        };
+        memset(sas.dynamic_structs, 0, sizeof(simple_struct) * 3);
+
+        for (int i = 0; i < sas.n_dynamic_structs; i++) {
+            sas.dynamic_structs[i].id = i + 1;
+            sas.dynamic_structs[i].name = "Name";
+        }
+
+        uint8_t buffer[1024];
+        size_t bytes_written = 0;
+
+        const s_type_info* info = S_GET_STRUCT_TYPE_INFO(struct_arrays_struct);
+        s_serialize_options opts = {0};
+        s_serializer_error err =
+            s_serialize(opts, S_GET_STRUCT_TYPE_INFO(struct_arrays_struct),
+                        &sas, buffer, sizeof(buffer), &bytes_written);
+
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+        TEST_ASSERT_EQUAL(449, bytes_written);
+
+        char deserialized_json[1024] = {0};
+
+        s_deserialize_options dopts = {
+            .format = FORMAT_JSON_STRING,
+            .allocator = &g_default_allocator,
+        };
+
+        err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(struct_arrays_struct),
+                            deserialized_json, buffer, bytes_written);
+
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+        TEST_ASSERT_EQUAL_STRING(
+            "{\"n_static_structs\":2,\"static_structs\":[{\"id\":1,\"name\":"
+            "\"12345"
+            "\"},{\"id\":2,\"name\":\"1234567890\"}],\"n_dynamic_structs\":3,"
+            "\"dynamic_structs\":[{\"id\":1,\"value\":0.000000,\"active\":"
+            "false,"
+            "\"name\":\"Name\",\"passport_number\":null,\"blob\":[0,0,0,0,0,0,"
+            "0,0,"
+            "0,",
+            deserialized_json);
+
+        g_default_allocator.deallocate(sas.dynamic_structs, NULL);
+    }
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -644,6 +745,7 @@ int main() {
     RUN_TEST(test_serialize_deserialize_union_structs);
     RUN_TEST(test_serialize_deserialize_into_json_string);
     RUN_TEST(test_serialize_deserialize_struct_with_arrays);
+    RUN_TEST(test_serialize_deserialize_arrays_into_json_string);
 
     UNITY_END();
     return 0;

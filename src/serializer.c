@@ -234,7 +234,7 @@ void tlv_decode_deserializer_cb(
             *(char**) ((uint8_t*) data + field_info->offset) = dest_ptr;
         } break;
         case FIELD_TYPE_ARRAY: {
-            // check if array is dynamic
+            // struct arrays are handled in the beginning of the function
             if (field_info->struct_type_info) {
                 ctx->err = SERIALIZER_ERROR_INVALID_TYPE;
                 return;
@@ -288,20 +288,19 @@ void tlv_decode_deserializer_cb(
         }
 
         if (decoded_el_data->idx == 0 && parent_info) {
-            assert(parent_info->type == FIELD_TYPE_STRUCT &&
+            assert((parent_info->type == FIELD_TYPE_STRUCT ||
+                    parent_info->type == FIELD_TYPE_ARRAY) &&
                    parent_info->struct_type_info);
 
-            // print parent label
-            const char* parent_label =
-                parent_info->label ? parent_info->label : parent_info->name;
-
-            sprintf(json_str_buffer + strlen(json_str_buffer), "\"%s\":{",
-                    parent_label);
+            bool is_array = parent_info->type == FIELD_TYPE_ARRAY;
+            sprintf(json_str_buffer + strlen(json_str_buffer), "\"%s\":%s{",
+                    parent_info->label ? parent_info->label : parent_info->name,
+                    parent_info->type == FIELD_TYPE_ARRAY ? "[" : "");
         }
 
         // print field name
-        sprintf(json_str_buffer + strlen(json_str_buffer),
-                "\"%s\":", field_info->name);
+        sprintf(json_str_buffer + strlen(json_str_buffer), "\"%s\":",
+                field_info->label ? field_info->label : field_info->name);
 
         // print field value
         switch (field_info->type) {
@@ -345,6 +344,61 @@ void tlv_decode_deserializer_cb(
                     (char*) decoded_el_data->value);
         } break;
 
+        case FIELD_TYPE_ARRAY: { // builtin arrays
+            int n_elements = decoded_el_data->length / field_info->size;
+            bool is_float_array =
+                field_info->array_field_info.builtin_type_is_float;
+
+            sprintf(json_str_buffer + strlen(json_str_buffer), "[");
+
+            for (int i = 0; i < n_elements; i++) {
+                if (i != 0)
+                    sprintf(json_str_buffer + strlen(json_str_buffer), ",");
+
+                if (is_float_array) {
+                    switch (field_info->size) {
+                    case 4: {
+                        sprintf(json_str_buffer + strlen(json_str_buffer), "%f",
+                                ((float*) decoded_el_data->value)[i]);
+                    } break;
+                    case 8: {
+                        sprintf(json_str_buffer + strlen(json_str_buffer), "%f",
+                                ((double*) decoded_el_data->value)[i]);
+                    } break;
+                    default:
+                        ctx->err = SERIALIZER_ERROR_INVALID_TYPE;
+                    }
+                } else {
+                    switch (field_info->size) {
+                    case 1: {
+                        sprintf(json_str_buffer + strlen(json_str_buffer), "%d",
+                                ((int8_t*) decoded_el_data->value)[i]);
+                    } break;
+                    case 2: {
+                        sprintf(json_str_buffer + strlen(json_str_buffer), "%d",
+                                ((int16_t*) decoded_el_data->value)[i]);
+                    } break;
+                    case 4: {
+                        sprintf(json_str_buffer + strlen(json_str_buffer), "%d",
+                                ((int32_t*) decoded_el_data->value)[i]);
+                    } break;
+                    case 8: {
+                        sprintf(json_str_buffer + strlen(json_str_buffer), "%d",
+                                ((int64_t*) decoded_el_data->value)[i]);
+                    } break;
+                    default:
+                        ctx->err = SERIALIZER_ERROR_INVALID_TYPE;
+                    }
+                }
+
+                if (ctx->err != SERIALIZER_OK)
+                    return;
+            }
+
+            sprintf(json_str_buffer + strlen(json_str_buffer), "]");
+
+        } break;
+
         default:
             ctx->err = SERIALIZER_ERROR_INVALID_TYPE;
         }
@@ -352,6 +406,9 @@ void tlv_decode_deserializer_cb(
         if (parent_info && parent_info->struct_type_info->field_count ==
                                decoded_el_data->idx + 1) {
             sprintf(json_str_buffer + strlen(json_str_buffer), "}");
+
+            if (parent_info->type == FIELD_TYPE_ARRAY)
+                sprintf(json_str_buffer + strlen(json_str_buffer), "]");
         }
 
         sprintf(json_str_buffer + strlen(json_str_buffer), ",");

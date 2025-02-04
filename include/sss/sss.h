@@ -78,6 +78,7 @@ typedef struct {
         struct {
             size_t size_field_size;
             size_t size_field_offset;
+            bool builtin_type_is_float;
         } array_field_info;
     };
 } s_field_info;
@@ -365,6 +366,19 @@ s_serializer_error s_deserialize(s_deserialize_options opts,
                     TAG_VALUE;                                                \
                 info.fields[i].optional_field_info.tag_type =                 \
                     FIELD_TYPE_STRING;                                        \
+                break;                                                        \
+            }                                                                 \
+        }                                                                     \
+        assert(field_found && "Field " #NAME " not found in union");          \
+    }
+
+#define S_BUILTIN_ARRAY_FIELD_SET_FLOAT(NAME)                                 \
+    {                                                                         \
+        bool field_found = false;                                             \
+        for (size_t i = union_start_field_index; i < info.field_count; i++) { \
+            if (strcmp(info.fields[i].name, #NAME) == 0) {                    \
+                field_found = true;                                           \
+                info.fields[i].array_field_info.builtin_type_is_float = true; \
                 break;                                                        \
             }                                                                 \
         }                                                                     \
