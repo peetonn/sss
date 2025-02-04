@@ -7,22 +7,19 @@
 
 #include "sss/tlv.h"
 
+#include "sss/log.h"
 #include "sss/serializer.h"
 
 // system includes
 #include <arpa/inet.h>
 
-#ifdef S_PACKED_TLV
 #pragma pack(push, 1)
-#endif
 typedef struct {
     uint16_t tag;
     uint32_t length;
     uint8_t value[];
 } s_tlv_element;
-#ifdef S_PACKED_TLV
 #pragma pack(pop)
-#endif
 
 static s_tlv_element k_dummy_el; // helper struct for macro
 
@@ -69,7 +66,8 @@ s_serializer_error s_tlv_encode_field(const s_field_info* field,
     case FIELD_TYPE_STRING: {
         if (field->type == FIELD_TYPE_STRING) {
             // include null terminator for strings
-            const char* str = *(const char**) field_data;
+            char* str;
+            memcpy(&str, field_data, sizeof(char*));
 
             if (str) {
                 tlv_el.length = (uint32_t) strlen(str) + 1;
@@ -184,8 +182,10 @@ s_serializer_error s_tlv_encode_field(const s_field_info* field,
     }
 
     // copy data
-    TLV_AS_T(tlv_buffer) = htons(tlv_el.tag);
-    TLV_AS_L(tlv_buffer) = htonl(tlv_el.length);
+    uint16_t type_net = htons(tlv_el.tag);
+    uint32_t length_net = htonl(tlv_el.length);
+    memcpy(tlv_buffer, &type_net, TLV_SIZEOF_T);
+    memcpy(tlv_buffer + TLV_SIZEOF_T, &length_net, TLV_SIZEOF_L);
 
     if (value_ptr) {
         memcpy(TLV_AS_V(tlv_buffer), value_ptr, tlv_el.length);
@@ -265,6 +265,9 @@ s_serializer_error s_tlv_decode_element(int idx, int level,
 s_serializer_error s_tlv_decode_level(int level, const uint8_t* buffer,
                                       size_t buffer_size, s_tlv_element_cb cb,
                                       void* user_data) {
+
+    LOG_DEBUG("s_tlv_decode_level %d buf sz %d", level, buffer_size);
+
     if (!buffer || !cb) {
         return SERIALIZER_ERROR_INVALID_TYPE;
     }
@@ -276,6 +279,9 @@ s_serializer_error s_tlv_decode_level(int level, const uint8_t* buffer,
     while (remaining_size > 0) {
         const s_tlv_element* tlv_el = (const s_tlv_element*) tlv_buffer;
         uint32_t tlv_el_length = ntohl(tlv_el->length);
+
+        LOG_DEBUG("s_tlv_decode_level el %d %d tag %d len %d", idx, level,
+                  ntohs(tlv_el->tag), tlv_el_length);
 
         // sanity check
         if (remaining_size < TLV_SIZEOF_TL + tlv_el_length) {
@@ -300,5 +306,7 @@ s_serializer_error s_tlv_decode_level(int level, const uint8_t* buffer,
 
 s_serializer_error s_tlv_decode(const uint8_t* buffer, size_t buffer_size,
                                 s_tlv_element_cb cb, void* user_data) {
+    LOG_DEBUG("s_tlv_decode");
+
     return s_tlv_decode_level(0, buffer, buffer_size, cb, user_data);
 }
