@@ -12,13 +12,17 @@
 // system includes
 #include <arpa/inet.h>
 
+#ifdef S_PACKED_TLV
 #pragma pack(push, 1)
+#endif
 typedef struct {
     uint16_t tag;
     uint32_t length;
     uint8_t value[];
 } s_tlv_element;
+#ifdef S_PACKED_TLV
 #pragma pack(pop)
+#endif
 
 static s_tlv_element k_dummy_el; // helper struct for macro
 
