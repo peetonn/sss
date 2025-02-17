@@ -68,4 +68,12 @@ typedef struct {
 } struct_arrays_struct;
 S_DEFINE_TYPE_INFO(struct_arrays_struct);
 
+// struct with fixed strings and arrays of fixed strings
+typedef struct {
+    char name[32];
+    int n_phone_numbers;
+    char phone_numbers[16][32];
+} fixed_strings_struct;
+S_DEFINE_TYPE_INFO(fixed_strings_struct);
+
 #endif

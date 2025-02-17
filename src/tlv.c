@@ -67,7 +67,11 @@ s_serializer_error s_tlv_encode_field(const s_field_info* field,
         if (field->type == FIELD_TYPE_STRING) {
             // include null terminator for strings
             char* str;
-            memcpy(&str, field_data, sizeof(char*));
+            if (field->opts & S_FIELD_OPT_STRING_FIXED) {
+                str = (char*) field_data;
+            } else {
+                memcpy(&str, field_data, sizeof(char*));
+            }
 
             if (str) {
                 tlv_el.length = (uint32_t) strlen(str) + 1;
@@ -136,9 +140,33 @@ s_serializer_error s_tlv_encode_field(const s_field_info* field,
         tlv_el.tag = is_struct_array ? TLV_TAG_NESTED_LIST : TLV_TAG_LIST;
 
         if (!is_struct_array) {
-            // just serialize as a blob
-            tlv_el.length = array_size * field->size;
-            value_ptr = is_dynamic ? *(const void**) field_data : field_data;
+            if (field->array_field_info.builtin_type ==
+                S_ARRAY_BUILTIN_TYPE_STRING) {
+                int tlv_length = 0;
+
+                // copy strings one by one, include null terminator
+                for (int i = 0; i < array_size; ++i) {
+                    char* str = (char*) field_data + field->size * i;
+                    int str_len = strlen(str) + 1;
+
+                    // copy
+                    if (buffer_size < str_len) {
+                        return SERIALIZER_ERROR_BUFFER_TOO_SMALL;
+                    }
+
+                    memcpy(tlv_buffer + TLV_SIZEOF_TL + tlv_length, str,
+                           str_len);
+                    tlv_length += str_len;
+                    buffer_size -= str_len;
+                }
+
+                tlv_el.length = tlv_length;
+                value_ptr = NULL;
+            } else { // just serialize as a blob
+                tlv_el.length = array_size * field->size;
+                value_ptr =
+                    is_dynamic ? *(const void**) field_data : field_data;
+            }
         } else {
             const s_type_info* sub_info = field->struct_type_info;
 

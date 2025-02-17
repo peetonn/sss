@@ -213,25 +213,31 @@ void tlv_decode_deserializer_cb(
             memcpy(dest_ptr, decoded_el_data->value, decoded_el_data->length);
         } break;
         case FIELD_TYPE_STRING: {
-            // need allocation
-            if (decoded_el_data->length) {
-                dest_ptr = ctx->opts.allocator->allocate(
-                    decoded_el_data->length, ctx->opts.user_data);
-
-                if (!dest_ptr) {
-                    if (ctx->err == SERIALIZER_OK)
-                        ctx->err = SERIALIZER_ERROR_ALLOCATOR_FAILED;
-
-                    return;
-                }
-
-                ctx->n_allocations++;
-                memset(dest_ptr, 0, decoded_el_data->length);
+            if (field_info->opts & S_FIELD_OPT_STRING_FIXED) {
+                dest_ptr = (uint8_t*) data + field_info->offset;
                 memcpy(dest_ptr, decoded_el_data->value,
                        decoded_el_data->length);
-            }
+            } else {
+                // need allocation
+                if (decoded_el_data->length) {
+                    dest_ptr = ctx->opts.allocator->allocate(
+                        decoded_el_data->length, ctx->opts.user_data);
 
-            *(char**) ((uint8_t*) data + field_info->offset) = dest_ptr;
+                    if (!dest_ptr) {
+                        if (ctx->err == SERIALIZER_OK)
+                            ctx->err = SERIALIZER_ERROR_ALLOCATOR_FAILED;
+
+                        return;
+                    }
+
+                    ctx->n_allocations++;
+                    memset(dest_ptr, 0, decoded_el_data->length);
+                    memcpy(dest_ptr, decoded_el_data->value,
+                           decoded_el_data->length);
+                }
+
+                *(char**) ((uint8_t*) data + field_info->offset) = dest_ptr;
+            }
         } break;
         case FIELD_TYPE_ARRAY: {
             // struct arrays are handled in the beginning of the function
@@ -257,9 +263,25 @@ void tlv_decode_deserializer_cb(
 
                 *(void**) ((uint8_t*) data + field_info->offset) = dest_ptr;
             } else {
-                dest_ptr = (uint8_t*) data + field_info->offset;
-                memcpy(dest_ptr, decoded_el_data->value,
-                       decoded_el_data->length);
+                if (field_info->array_field_info.builtin_type &
+                    S_ARRAY_BUILTIN_TYPE_STRING) {
+                        dest_ptr = (uint8_t*) data + field_info->offset;
+                        // unpack strings - separated by null terminators
+                        int offset = 0;
+
+                        while (offset < decoded_el_data->length) {
+                            char* str = (char*) decoded_el_data->value + offset;
+                            int str_len = strlen(str) + 1;
+
+                            memcpy(dest_ptr, str, str_len);
+                            dest_ptr += field_info->size;
+                            offset += str_len;
+                        }
+                } else {
+                    dest_ptr = (uint8_t*) data + field_info->offset;
+                    memcpy(dest_ptr, decoded_el_data->value,
+                           decoded_el_data->length);
+                }
             }
         } break;
         case FIELD_TYPE_STRUCT: {
@@ -346,8 +368,10 @@ void tlv_decode_deserializer_cb(
 
         case FIELD_TYPE_ARRAY: { // builtin arrays
             int n_elements = decoded_el_data->length / field_info->size;
-            bool is_float_array =
-                field_info->array_field_info.builtin_type_is_float;
+            bool is_float_array = field_info->array_field_info.builtin_type ==
+                                  S_ARRAY_BUILTIN_TYPE_FLOAT;
+            bool is_string_array = field_info->array_field_info.builtin_type ==
+                                   S_ARRAY_BUILTIN_TYPE_STRING;
 
             sprintf(json_str_buffer + strlen(json_str_buffer), "[");
 

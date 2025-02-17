@@ -585,6 +585,50 @@ void test_tlv_encode_decode_struct_with_struct_arrays() {
     }
 }
 
+void test_tlv_encode_decode_struct_with_fixed_strings() {
+    fixed_strings_struct fss = {
+        .name = "Hello, World!",
+        .n_phone_numbers = 2,
+        .phone_numbers = {"1234567890", "0987654321"},
+    };
+
+    uint8_t buffer[1024];
+    size_t bytes_written = 0;
+
+    const s_type_info* info = S_GET_STRUCT_TYPE_INFO(fixed_strings_struct);
+    s_serializer_error err =
+        s_tlv_encode(info, &fss, buffer, sizeof(buffer), &bytes_written);
+
+    TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+    TEST_ASSERT_EQUAL(58, bytes_written);
+
+    struct decode_data data = {0};
+
+    err = s_tlv_decode(buffer, bytes_written, on_tlv_decode_element, &data);
+
+    TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+
+    print_decode_data_debug(&data);
+
+    TEST_ASSERT_EQUAL(3, data.tlv_el_num);
+
+    { // check each decoded element
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].idx);
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].level);
+        TEST_ASSERT_EQUAL_STRING("Hello, World!",
+                                 (const char*) data.tlv_els[0].value);
+
+        TEST_ASSERT_EQUAL_INT(1, data.tlv_els[1].idx);
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[1].level);
+        TEST_ASSERT_EQUAL_INT(2, *(int*) data.tlv_els[1].value);
+
+        TEST_ASSERT_EQUAL_INT(2, data.tlv_els[2].idx);
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[2].level);
+        TEST_ASSERT_EQUAL_STRING("1234567890",
+                                 (const char*) data.tlv_els[2].value);
+    }
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -598,6 +642,7 @@ int main() {
     RUN_TEST(test_tlv_encode_decode_partial_struct);
     RUN_TEST(test_tlv_encode_decode_struct_with_builtin_arrays);
     RUN_TEST(test_tlv_encode_decode_struct_with_struct_arrays);
+    RUN_TEST(test_tlv_encode_decode_struct_with_fixed_strings);
 
     UNITY_END();
     return 0;

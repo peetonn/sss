@@ -55,8 +55,15 @@ typedef enum {
     S_FIELD_OPT_COMPRESSED = 1 << 1,
     S_FIELD_OPT_ENCRYPTED = 1 << 2,
     S_FIELD_OPT_ARRAY_DYNAMIC = 1 << 3,
+    S_FIELD_OPT_STRING_FIXED = 1 << 4,
 
 } s_field_opts;
+
+typedef enum {
+    S_ARRAY_BUILTIN_TYPE_BLOB,
+    S_ARRAY_BUILTIN_TYPE_FLOAT,
+    S_ARRAY_BUILTIN_TYPE_STRING,
+} s_array_builtin_type;
 
 struct s_type_info;
 
@@ -78,7 +85,7 @@ typedef struct {
         struct {
             size_t size_field_size;
             size_t size_field_offset;
-            bool builtin_type_is_float;
+            s_array_builtin_type builtin_type;
         } array_field_info;
     };
 } s_field_info;
@@ -293,6 +300,13 @@ s_serializer_error s_deserialize(s_deserialize_options opts,
     GET_MACRO(__VA_ARGS__, S_FIELD_STRING_CONST_LABELED, \
               S_FIELD_STRING_CONST_LABELED)(__VA_ARGS__, NULL)
 
+#define S_FIELD_STRING_FIXED_LABELED(NAME, FIELD_LABEL, ...) \
+    S_FIELD_LABELED(NAME, FIELD_TYPE_STRING, FIELD_LABEL);   \
+    fields[info.field_count - 1].opts |= S_FIELD_OPT_STRING_FIXED;
+#define S_FIELD_STRING_FIXED(...)                        \
+    GET_MACRO(__VA_ARGS__, S_FIELD_STRING_FIXED_LABELED, \
+              S_FIELD_STRING_FIXED_LABELED)(__VA_ARGS__, NULL)
+
 #define S_FIELD_BOOL_LABELED(NAME, FIELD_LABEL, ...) \
     S_ASSERT_TYPE(bool, dummy.NAME);                 \
     S_FIELD_LABELED(NAME, FIELD_TYPE_BOOL, FIELD_LABEL);
@@ -372,17 +386,31 @@ s_serializer_error s_deserialize(s_deserialize_options opts,
         assert(field_found && "Field " #NAME " not found in union");          \
     }
 
-#define S_BUILTIN_ARRAY_FIELD_SET_FLOAT(NAME)                                 \
-    {                                                                         \
-        bool field_found = false;                                             \
-        for (size_t i = union_start_field_index; i < info.field_count; i++) { \
-            if (strcmp(info.fields[i].name, #NAME) == 0) {                    \
-                field_found = true;                                           \
-                info.fields[i].array_field_info.builtin_type_is_float = true; \
-                break;                                                        \
-            }                                                                 \
-        }                                                                     \
-        assert(field_found && "Field " #NAME " not found in union");          \
+#define S_BUILTIN_ARRAY_FIELD_SET_FLOAT(NAME)                        \
+    {                                                                \
+        bool field_found = false;                                    \
+        for (size_t i = 0; i < info.field_count; i++) {              \
+            if (strcmp(info.fields[i].name, #NAME) == 0) {           \
+                field_found = true;                                  \
+                info.fields[i].array_field_info.builtin_type =       \
+                    S_ARRAY_BUILTIN_TYPE_FLOAT;                      \
+                break;                                               \
+            }                                                        \
+        }                                                            \
+        assert(field_found && "Field " #NAME " not found in union"); \
+    }
+
+#define S_BUILTIN_ARRAY_FIELD_SET_TYPE(NAME, BUILTIN_TYPE)                   \
+    {                                                                        \
+        bool field_found = false;                                            \
+        for (size_t i = 0; i < info.field_count; i++) {                      \
+            if (strcmp(info.fields[i].name, #NAME) == 0) {                   \
+                field_found = true;                                          \
+                info.fields[i].array_field_info.builtin_type = BUILTIN_TYPE; \
+                break;                                                       \
+            }                                                                \
+        }                                                                    \
+        assert(field_found && "Field " #NAME " not found in union");         \
     }
 
 #define S_FIELD_ARRAY_STATIC_LABELED(NAME, SIZE, FIELD_LABEL, ...)    \
@@ -391,7 +419,9 @@ s_serializer_error s_deserialize(s_deserialize_options opts,
     fields[info.field_count - 1].array_field_info.size_field_size =   \
         sizeof(dummy.SIZE);                                           \
     fields[info.field_count - 1].array_field_info.size_field_offset = \
-        offsetof(struct_type, SIZE);
+        offsetof(struct_type, SIZE);                                  \
+    fields[info.field_count - 1].array_field_info.builtin_type =      \
+        S_ARRAY_BUILTIN_TYPE_BLOB;
 #define S_FIELD_ARRAY_STATIC(...)                          \
     GET_MACRO_3(__VA_ARGS__, S_FIELD_ARRAY_STATIC_LABELED, \
                 S_FIELD_ARRAY_STATIC_LABELED)(__VA_ARGS__, NULL)
@@ -403,7 +433,9 @@ s_serializer_error s_deserialize(s_deserialize_options opts,
     fields[info.field_count - 1].array_field_info.size_field_size =   \
         sizeof(dummy.SIZE);                                           \
     fields[info.field_count - 1].array_field_info.size_field_offset = \
-        offsetof(struct_type, SIZE);
+        offsetof(struct_type, SIZE);                                  \
+    fields[info.field_count - 1].array_field_info.builtin_type =      \
+        S_ARRAY_BUILTIN_TYPE_BLOB;
 #define S_FIELD_ARRAY_DYNAMIC(...)                          \
     GET_MACRO_3(__VA_ARGS__, S_FIELD_ARRAY_DYNAMIC_LABELED, \
                 S_FIELD_ARRAY_DYNAMIC_LABELED)(__VA_ARGS__, NULL)

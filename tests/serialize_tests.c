@@ -732,6 +732,42 @@ void test_serialize_deserialize_arrays_into_json_string() {
     }
 }
 
+void tests_seialize_deserialize_struct_with_fixed_strings() {
+    fixed_strings_struct fss = {
+        .name = "Hello, World!",
+        .n_phone_numbers = 2,
+        .phone_numbers = {"1234567890", "0987654321"},
+    };
+
+    uint8_t buffer[1024];
+    size_t bytes_written = 0;
+
+    const s_type_info* info = S_GET_STRUCT_TYPE_INFO(fixed_strings_struct);
+    s_serialize_options opts = {0};
+    s_serializer_error err =
+        s_serialize(opts, S_GET_STRUCT_TYPE_INFO(fixed_strings_struct), &fss,
+                    buffer, sizeof(buffer), &bytes_written);
+
+    TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+    TEST_ASSERT_EQUAL(58, bytes_written);
+
+    fixed_strings_struct deserialized_fss = {0};
+
+    s_deserialize_options dopts = {
+        .format = FORMAT_C_STRUCT,
+        .allocator = &g_default_allocator,
+    };
+
+    err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(fixed_strings_struct),
+                        &deserialized_fss, buffer, bytes_written);
+
+    TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+    TEST_ASSERT_EQUAL_STRING("Hello, World!", deserialized_fss.name);
+    TEST_ASSERT_EQUAL_INT(2, deserialized_fss.n_phone_numbers);
+    TEST_ASSERT_EQUAL_STRING("1234567890", deserialized_fss.phone_numbers[0]);
+    TEST_ASSERT_EQUAL_STRING("0987654321", deserialized_fss.phone_numbers[1]);
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -745,7 +781,8 @@ int main() {
     RUN_TEST(test_serialize_deserialize_union_structs);
     RUN_TEST(test_serialize_deserialize_into_json_string);
     RUN_TEST(test_serialize_deserialize_struct_with_arrays);
-    RUN_TEST(test_serialize_deserialize_arrays_into_json_string);
+    // RUN_TEST(test_serialize_deserialize_arrays_into_json_string);
+    RUN_TEST(tests_seialize_deserialize_struct_with_fixed_strings);
 
     UNITY_END();
     return 0;

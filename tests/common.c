@@ -49,4 +49,11 @@ S_FIELD_INT32(n_dynamic_structs)
 S_FIELD_STRUCT_ARRAY_DYNAMIC(dynamic_structs, n_dynamic_structs, simple_struct,
                              "DynamicStructs")
 S_SERIALIZE_END()
+
+S_SERIALIZE_BEGIN(fixed_strings_struct)
+S_FIELD_STRING_FIXED(name)
+S_FIELD_INT32(n_phone_numbers)
+S_FIELD_ARRAY_STATIC(phone_numbers, n_phone_numbers)
+S_BUILTIN_ARRAY_FIELD_SET_TYPE(phone_numbers, S_ARRAY_BUILTIN_TYPE_STRING)
+S_SERIALIZE_END()
 // ---
