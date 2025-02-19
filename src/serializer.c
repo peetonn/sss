@@ -296,9 +296,10 @@ void tlv_decode_deserializer_cb(
 
     case FORMAT_CUSTOM: {
         if (ctx->opts.custom_deserializer) {
-            ctx->opts.custom_deserializer(
-                decoded_el_data->idx, lvl, decoded_el_data->length,
-                decoded_el_data->value, field_info, ctx->opts.user_data);
+            ctx->opts.custom_deserializer(decoded_el_data->idx, lvl,
+                                          decoded_el_data->length,
+                                          decoded_el_data->value, field_info,
+                                          parent_info, ctx->opts.user_data);
         }
     } break;
 

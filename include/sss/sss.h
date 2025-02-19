@@ -135,6 +135,7 @@ typedef enum {
 typedef void (*s_custom_deserializer_cb)(int el_idx, int el_lvl, size_t length,
                                          const uint8_t* value,
                                          const s_field_info* field_info,
+                                         const s_field_info* parent_info,
                                          void* user_data);
 
 typedef struct {
