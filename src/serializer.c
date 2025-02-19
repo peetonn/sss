@@ -265,18 +265,18 @@ void tlv_decode_deserializer_cb(
             } else {
                 if (field_info->array_field_info.builtin_type &
                     S_ARRAY_BUILTIN_TYPE_STRING) {
-                        dest_ptr = (uint8_t*) data + field_info->offset;
-                        // unpack strings - separated by null terminators
-                        int offset = 0;
+                    dest_ptr = (uint8_t*) data + field_info->offset;
+                    // unpack strings - separated by null terminators
+                    int offset = 0;
 
-                        while (offset < decoded_el_data->length) {
-                            char* str = (char*) decoded_el_data->value + offset;
-                            int str_len = strlen(str) + 1;
+                    while (offset < decoded_el_data->length) {
+                        char* str = (char*) decoded_el_data->value + offset;
+                        int str_len = strlen(str) + 1;
 
-                            memcpy(dest_ptr, str, str_len);
-                            dest_ptr += field_info->size;
-                            offset += str_len;
-                        }
+                        memcpy(dest_ptr, str, str_len);
+                        dest_ptr += field_info->size;
+                        offset += str_len;
+                    }
                 } else {
                     dest_ptr = (uint8_t*) data + field_info->offset;
                     memcpy(dest_ptr, decoded_el_data->value,
@@ -298,7 +298,7 @@ void tlv_decode_deserializer_cb(
         if (ctx->opts.custom_deserializer) {
             ctx->opts.custom_deserializer(
                 decoded_el_data->idx, lvl, decoded_el_data->length,
-                decoded_el_data->value, field_info->type, ctx->opts.user_data);
+                decoded_el_data->value, field_info, ctx->opts.user_data);
         }
     } break;
 
