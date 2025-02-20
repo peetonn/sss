@@ -76,4 +76,27 @@ typedef struct {
 } fixed_strings_struct;
 S_DEFINE_TYPE_INFO(fixed_strings_struct);
 
+typedef struct {
+    char str_[32];
+    int a_;
+} TestStruct;
+S_DEFINE_TYPE_INFO(TestStruct);
+
+typedef struct {
+    TestStruct testStruct_;
+} TestStruct2;
+S_DEFINE_TYPE_INFO(TestStruct2);
+
+typedef struct {
+    int nStaticStructs_;
+    int nDynamicStructs_;
+    int nInts_;
+    int nInts2_;
+    TestStruct staticStructs_[16];
+    TestStruct2* dynamicStructs_;
+    int ints_[16];
+    int* ints2_;
+} TestStruct3;
+S_DEFINE_TYPE_INFO(TestStruct3);
+
 #endif

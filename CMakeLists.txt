@@ -47,6 +47,11 @@ add_definitions(
     )
 add_compile_definitions("DEBUG=$<CONFIG:Debug>")
 
+# add SSS_DEBUG_LOG for debug builds
+if (CMAKE_BUILD_TYPE MATCHES Debug)
+    add_compile_definitions(SSS_DEBUG_LOG)
+endif ()
+
 # Library
 set(LIB_NAME sss)
 add_library(${LIB_NAME}

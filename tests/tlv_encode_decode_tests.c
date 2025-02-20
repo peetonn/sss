@@ -16,20 +16,82 @@
 // system includes
 #include <stdlib.h>
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 struct decode_data {
     int tlv_el_num;
     s_tlv_decoded_element_data tlv_els[1024];
 };
 
+#define MAX_BYTE_DUMP (32)
+
+const char* print_value(uint8_t* data, int len) {
+    static char buffer[1024];
+    memset(buffer, 0, sizeof(buffer));
+
+    // checks if value is a string -- by checking each byte is within printable
+    // range and data is null-terminated
+    bool is_string = false;
+
+    if (len > 1)
+        for (int i = 0; i < len; i++) {
+            if (data[i] == 0 && i == len - 1) {
+                is_string = true;
+                break;
+            }
+
+            if (data[i] < 32 || data[i] > 126) {
+                is_string = false;
+                break;
+            }
+        }
+
+    if (is_string) {
+        snprintf(buffer, sizeof(buffer), "\"%*s%s\"",
+                 (len > MAX_BYTE_DUMP ? MAX_BYTE_DUMP : len - 1), data,
+                 len > MAX_BYTE_DUMP ? "..." : "");
+    } else {
+        buffer[0] = 0;
+        for (int i = 0; i < MIN(MAX_BYTE_DUMP / 3, len); i++) {
+            snprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer),
+                     "%02X ", data[i]);
+        }
+
+        if (len > MAX_BYTE_DUMP / 3) {
+            snprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer),
+                     "...");
+        }
+    }
+
+    return buffer;
+}
+
 void print_decode_data_debug(struct decode_data* data) {
     int total_length = 0;
     for (int i = 0; i < data->tlv_el_num; i++) {
-        printf("%2d - idx: %2d, level: %2d, type: 0x%02x, length: %4d\n", i,
-               data->tlv_els[i].idx, data->tlv_els[i].level,
-               data->tlv_els[i].type, data->tlv_els[i].length);
-        total_length += data->tlv_els[i].length;
+        s_tlv_decoded_element_data* el = &data->tlv_els[i];
+
+        static const char* type_labels[] = {
+            "UNKNOWN",          "FIELD",
+            "NESTED",           "LIST",
+            "NESTED_LIST",      "COMPRESSED_VALUE",
+            "ENCRYPTED_VALUE",  "COMPRESSED_NESTED",
+            "ENCRYPTED_NESTED",
+        };
+        const char* type_label = "UNKNOWN";
+
+        if (el->type < sizeof(type_labels) / sizeof(type_labels[0])) {
+            type_label = type_labels[el->type];
+        }
+
+        printf("%3d LVL %2d %*s%2d %s (%02X) %4db %32s\n", i, el->level,
+               el->level * 4, "", el->idx, type_label, el->type, el->length,
+               print_value(el->value, el->length));
+
+        total_length += el->length;
     }
-    printf("Total value length: %d\n", total_length);
+    printf("TOTAL VALUE LENGTH: %d\n", total_length);
 }
 
 void on_tlv_decode_element(const s_tlv_decoded_element_data* tlv_el,
@@ -629,6 +691,53 @@ void test_tlv_encode_decode_struct_with_fixed_strings() {
     }
 }
 
+void test_tlv_encode_decode_test_structs() {
+    {
+        TestStruct3 ts3 = {
+            .nStaticStructs_ = 3,
+            .nDynamicStructs_ = 3,
+            .nInts_ = 3,
+            .nInts2_ = 2,
+            .staticStructs_ =
+                {
+                    {.str_ = "Hello, World0!", .a_ = 1},
+                    {.str_ = "Hello, World1!", .a_ = 2},
+                    {.str_ = "Hello, World2!", .a_ = 3},
+                },
+            .dynamicStructs_ = (TestStruct*) malloc(3 * sizeof(TestStruct)),
+            .ints_ = {1, 2, 3},
+            .ints2_ = (int*) malloc(2 * sizeof(int)),
+        };
+
+        for (int i = 0; i < ts3.nDynamicStructs_; i++) {
+            snprintf(ts3.dynamicStructs_[i].testStruct_.str_, 32,
+                     "Hello, World%d!", i + 3);
+            ts3.dynamicStructs_[i].testStruct_.a_ = i + 4;
+        }
+
+        for (int i = 0; i < ts3.nInts2_; i++) {
+            ts3.ints2_[i] = i + 1;
+        }
+
+        uint8_t buffer[1024];
+        size_t bytes_written = 0;
+
+        const s_type_info* info = S_GET_STRUCT_TYPE_INFO(TestStruct3);
+        s_serializer_error err =
+            s_tlv_encode(info, &ts3, buffer, sizeof(buffer), &bytes_written);
+
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+
+        struct decode_data data = {0};
+
+        err = s_tlv_decode(buffer, bytes_written, on_tlv_decode_element, &data);
+
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+
+        print_decode_data_debug(&data);
+    }
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -643,6 +752,8 @@ int main() {
     RUN_TEST(test_tlv_encode_decode_struct_with_builtin_arrays);
     RUN_TEST(test_tlv_encode_decode_struct_with_struct_arrays);
     RUN_TEST(test_tlv_encode_decode_struct_with_fixed_strings);
+
+    RUN_TEST(test_tlv_encode_decode_test_structs);
 
     UNITY_END();
     return 0;
