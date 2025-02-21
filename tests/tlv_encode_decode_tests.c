@@ -32,6 +32,9 @@ void print_decode_data_debug(struct decode_data* data) {
 
 void on_tlv_decode_element(const s_tlv_decoded_element_data* tlv_el,
                            void* user_data) {
+    if (!tlv_el)
+        return;
+
     struct decode_data* data = (struct decode_data*) user_data;
     data->tlv_els[data->tlv_el_num++] = *tlv_el;
 }
