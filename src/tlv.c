@@ -260,26 +260,29 @@ s_serializer_error s_tlv_decode_element(int idx, int level,
 
     uint16_t tag = ntohs(tlv_el->tag);
     uint32_t length = ntohl(tlv_el->length);
+    s_tlv_decoded_element_data decoded_el_data = {
+        .idx = idx,
+        .level = level,
+        .type = tag,
+        .length = length,
+        .value = tlv_el->value,
+    };
+
+    LOG_DEBUG("TLV DECODE %s", s_print_decoded_data(&decoded_el_data));
 
     switch (tag) {
     case TLV_TAG_FIELD:
     case TLV_TAG_LIST: {
-        s_tlv_decoded_element_data decoded_el_data = {
-            .idx = idx,
-            .level = level,
-            .type = tag,
-            .length = length,
-            .value = tlv_el->value,
-        };
-
         cb(&decoded_el_data, user_data);
     } break;
 
     case TLV_TAG_NESTED_LIST: {
+        cb(&decoded_el_data, user_data);
         s_tlv_decode_level(level + 1, tlv_el->value, length, cb, user_data);
     } break;
 
     case TLV_TAG_NESTED: {
+        cb(&decoded_el_data, user_data);
         s_tlv_decode_level(level + 1, tlv_el->value, length, cb, user_data);
     } break;
 
@@ -294,8 +297,6 @@ s_serializer_error s_tlv_decode_level(int level, const uint8_t* buffer,
                                       size_t buffer_size, s_tlv_element_cb cb,
                                       void* user_data) {
 
-    LOG_DEBUG("s_tlv_decode_level %d buf sz %d", level, buffer_size);
-
     if (!buffer || !cb) {
         return SERIALIZER_ERROR_INVALID_TYPE;
     }
@@ -307,9 +308,6 @@ s_serializer_error s_tlv_decode_level(int level, const uint8_t* buffer,
     while (remaining_size > 0) {
         const s_tlv_element* tlv_el = (const s_tlv_element*) tlv_buffer;
         uint32_t tlv_el_length = ntohl(tlv_el->length);
-
-        LOG_DEBUG("s_tlv_decode_level el %d %d tag %d len %d", idx, level,
-                  ntohs(tlv_el->tag), tlv_el_length);
 
         // sanity check
         if (remaining_size < TLV_SIZEOF_TL + tlv_el_length) {
@@ -334,7 +332,84 @@ s_serializer_error s_tlv_decode_level(int level, const uint8_t* buffer,
 
 s_serializer_error s_tlv_decode(const uint8_t* buffer, size_t buffer_size,
                                 s_tlv_element_cb cb, void* user_data) {
-    LOG_DEBUG("s_tlv_decode");
+    s_serializer_error err =
+        s_tlv_decode_level(0, buffer, buffer_size, cb, user_data);
 
-    return s_tlv_decode_level(0, buffer, buffer_size, cb, user_data);
+    if (err == SERIALIZER_OK) {
+        // call final callback to indicate end of decoding
+        cb(NULL, user_data);
+    }
+
+    return err;
+}
+
+// helpers
+#define MAX_BYTE_DUMP (32)
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+const char* s_print_value(uint8_t* data, int len) {
+    static char buffer[1024];
+    memset(buffer, 0, sizeof(buffer));
+
+    // checks if value is a string -- by checking each byte is within printable
+    // range and data is null-terminated
+    bool is_string = false;
+
+    if (len > 1)
+        for (int i = 0; i < len; i++) {
+            if (data[i] == 0 && i == len - 1) {
+                is_string = true;
+                break;
+            }
+
+            if (data[i] < 32 || data[i] > 126) {
+                is_string = false;
+                break;
+            }
+        }
+
+    if (is_string) {
+        snprintf(buffer, sizeof(buffer), "\"%*s%s\"",
+                 (len > MAX_BYTE_DUMP ? MAX_BYTE_DUMP : len - 1), data,
+                 len > MAX_BYTE_DUMP ? ".." : "");
+    } else {
+        buffer[0] = 0;
+        for (int i = 0; i < MIN(MAX_BYTE_DUMP / 3 - 1, len); i++) {
+            snprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer),
+                     " %02X", data[i]);
+        }
+
+        if (len > MAX_BYTE_DUMP / 3 - 1) {
+            snprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer),
+                     "..");
+        }
+    }
+
+    return buffer;
+}
+
+const char* s_print_decoded_data(s_tlv_decoded_element_data* el) {
+    static char buffer[1024];
+    static const char* type_labels[] = {
+        "UNKNOWN",          "FIELD",
+        "NESTED",           "LIST",
+        "NESTED_LIST",      "COMPRESSED_VALUE",
+        "ENCRYPTED_VALUE",  "COMPRESSED_NESTED",
+        "ENCRYPTED_NESTED",
+    };
+    const char* type_label = "UNKNOWN";
+
+    memset(buffer, 0, sizeof(buffer));
+
+    if (el->type < sizeof(type_labels) / sizeof(type_labels[0])) {
+        type_label = type_labels[el->type];
+    }
+
+    snprintf(buffer, sizeof(buffer),
+             "LVL %2d IDX %2d LEN %4d TAG 0x%02X %-20s: %32s", el->level,
+             el->idx, el->length, el->type, type_label,
+             s_print_value(el->value, el->length));
+
+    return buffer;
 }

@@ -16,80 +16,16 @@
 // system includes
 #include <stdlib.h>
 
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-
 struct decode_data {
     int tlv_el_num;
     s_tlv_decoded_element_data tlv_els[1024];
 };
 
-#define MAX_BYTE_DUMP (32)
-
-const char* print_value(uint8_t* data, int len) {
-    static char buffer[1024];
-    memset(buffer, 0, sizeof(buffer));
-
-    // checks if value is a string -- by checking each byte is within printable
-    // range and data is null-terminated
-    bool is_string = false;
-
-    if (len > 1)
-        for (int i = 0; i < len; i++) {
-            if (data[i] == 0 && i == len - 1) {
-                is_string = true;
-                break;
-            }
-
-            if (data[i] < 32 || data[i] > 126) {
-                is_string = false;
-                break;
-            }
-        }
-
-    if (is_string) {
-        snprintf(buffer, sizeof(buffer), "\"%*s%s\"",
-                 (len > MAX_BYTE_DUMP ? MAX_BYTE_DUMP : len - 1), data,
-                 len > MAX_BYTE_DUMP ? "..." : "");
-    } else {
-        buffer[0] = 0;
-        for (int i = 0; i < MIN(MAX_BYTE_DUMP / 3, len); i++) {
-            snprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer),
-                     "%02X ", data[i]);
-        }
-
-        if (len > MAX_BYTE_DUMP / 3) {
-            snprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer),
-                     "...");
-        }
-    }
-
-    return buffer;
-}
-
 void print_decode_data_debug(struct decode_data* data) {
     int total_length = 0;
     for (int i = 0; i < data->tlv_el_num; i++) {
-        s_tlv_decoded_element_data* el = &data->tlv_els[i];
-
-        static const char* type_labels[] = {
-            "UNKNOWN",          "FIELD",
-            "NESTED",           "LIST",
-            "NESTED_LIST",      "COMPRESSED_VALUE",
-            "ENCRYPTED_VALUE",  "COMPRESSED_NESTED",
-            "ENCRYPTED_NESTED",
-        };
-        const char* type_label = "UNKNOWN";
-
-        if (el->type < sizeof(type_labels) / sizeof(type_labels[0])) {
-            type_label = type_labels[el->type];
-        }
-
-        printf("%3d LVL %2d %*s%2d %s (%02X) %4db %32s\n", i, el->level,
-               el->level * 4, "", el->idx, type_label, el->type, el->length,
-               print_value(el->value, el->length));
-
-        total_length += el->length;
+        printf("%3d %s\n", i, s_print_decoded_data(&data->tlv_els[i]));
+        total_length += data->tlv_els[i].length;
     }
     printf("TOTAL VALUE LENGTH: %d\n", total_length);
 }
@@ -189,44 +125,50 @@ void test_tlv_encode_decode_nested_struct() {
     err = s_tlv_decode(buffer, bytes_written, on_tlv_decode_element, &data);
 
     TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
-    TEST_ASSERT_EQUAL(8, data.tlv_el_num);
+    print_decode_data_debug(&data);
+
+    TEST_ASSERT_EQUAL(9, data.tlv_el_num);
 
     { // check each decoded element
         TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].idx);
         TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].level);
         TEST_ASSERT_EQUAL_INT(ENUM_VALUE_2, *(int*) data.tlv_els[0].value);
 
-        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[1].idx);
-        TEST_ASSERT_EQUAL_INT(1, data.tlv_els[1].level);
-        TEST_ASSERT_EQUAL_INT(42, *(int*) data.tlv_els[1].value);
+        TEST_ASSERT_EQUAL_INT(1, data.tlv_els[1].idx);
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[1].level);
+        TEST_ASSERT_EQUAL_INT(TLV_TAG_NESTED, data.tlv_els[1].type);
 
-        TEST_ASSERT_EQUAL_INT(1, data.tlv_els[2].idx);
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[2].idx);
         TEST_ASSERT_EQUAL_INT(1, data.tlv_els[2].level);
-        TEST_ASSERT_EQUAL_FLOAT(3.14f, *(float*) data.tlv_els[2].value);
+        TEST_ASSERT_EQUAL_INT(42, *(int*) data.tlv_els[2].value);
 
-        TEST_ASSERT_EQUAL_INT(2, data.tlv_els[3].idx);
+        TEST_ASSERT_EQUAL_INT(1, data.tlv_els[3].idx);
         TEST_ASSERT_EQUAL_INT(1, data.tlv_els[3].level);
-        TEST_ASSERT_EQUAL_INT(1, *(bool*) data.tlv_els[3].value);
+        TEST_ASSERT_EQUAL_FLOAT(3.14f, *(float*) data.tlv_els[3].value);
 
-        TEST_ASSERT_EQUAL_INT(3, data.tlv_els[4].idx);
+        TEST_ASSERT_EQUAL_INT(2, data.tlv_els[4].idx);
         TEST_ASSERT_EQUAL_INT(1, data.tlv_els[4].level);
-        TEST_ASSERT_EQUAL_STRING("Hello, World!",
-                                 (const char*) data.tlv_els[4].value);
+        TEST_ASSERT_EQUAL_INT(1, *(bool*) data.tlv_els[4].value);
 
-        TEST_ASSERT_EQUAL_INT(4, data.tlv_els[5].idx);
+        TEST_ASSERT_EQUAL_INT(3, data.tlv_els[5].idx);
         TEST_ASSERT_EQUAL_INT(1, data.tlv_els[5].level);
-        TEST_ASSERT_EQUAL_STRING("1234567890",
+        TEST_ASSERT_EQUAL_STRING("Hello, World!",
                                  (const char*) data.tlv_els[5].value);
 
-        TEST_ASSERT_EQUAL_INT(5, data.tlv_els[6].idx);
+        TEST_ASSERT_EQUAL_INT(4, data.tlv_els[6].idx);
         TEST_ASSERT_EQUAL_INT(1, data.tlv_els[6].level);
-        TEST_ASSERT_EQUAL_MEMORY(ns.sub.blob, data.tlv_els[6].value,
+        TEST_ASSERT_EQUAL_STRING("1234567890",
+                                 (const char*) data.tlv_els[6].value);
+
+        TEST_ASSERT_EQUAL_INT(5, data.tlv_els[7].idx);
+        TEST_ASSERT_EQUAL_INT(1, data.tlv_els[7].level);
+        TEST_ASSERT_EQUAL_MEMORY(ns.sub.blob, data.tlv_els[7].value,
                                  sizeof(ns.sub.blob));
 
-        TEST_ASSERT_EQUAL_INT(2, data.tlv_els[7].idx);
-        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[7].level);
+        TEST_ASSERT_EQUAL_INT(2, data.tlv_els[8].idx);
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[8].level);
         TEST_ASSERT_EQUAL_STRING("Hello, World2!",
-                                 (const char*) data.tlv_els[7].value);
+                                 (const char*) data.tlv_els[8].value);
     }
 }
 
@@ -263,38 +205,54 @@ void test_tlv_encode_decode_nested_union_struct() {
         err = s_tlv_decode(buffer, bytes_written, on_tlv_decode_element, &data);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
-        TEST_ASSERT_EQUAL(7, data.tlv_el_num);
+        print_decode_data_debug(&data);
+
+        TEST_ASSERT_EQUAL(8, data.tlv_el_num);
 
         { // check each decoded element
-            TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].idx);
-            TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].level);
-            TEST_ASSERT_EQUAL_INT(ENUM_VALUE_1, *(int*) data.tlv_els[0].value);
+            int idx = 0;
 
-            TEST_ASSERT_EQUAL_INT(0, data.tlv_els[1].idx);
-            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[1].level);
-            TEST_ASSERT_EQUAL_INT(42, *(int*) data.tlv_els[1].value);
+            TEST_ASSERT_EQUAL_INT(idx, data.tlv_els[idx].idx);
+            TEST_ASSERT_EQUAL_INT(0, data.tlv_els[idx].level);
+            TEST_ASSERT_EQUAL_INT(ENUM_VALUE_1,
+                                  *(int*) data.tlv_els[idx].value);
+            idx++;
 
-            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[2].idx);
-            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[2].level);
-            TEST_ASSERT_EQUAL_FLOAT(3.14f, *(float*) data.tlv_els[2].value);
+            TEST_ASSERT_EQUAL_INT(idx, data.tlv_els[idx].idx);
+            TEST_ASSERT_EQUAL_INT(0, data.tlv_els[idx].level);
+            TEST_ASSERT_EQUAL_INT(TLV_TAG_NESTED, data.tlv_els[idx].type);
+            idx++;
 
-            TEST_ASSERT_EQUAL_INT(2, data.tlv_els[3].idx);
-            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[3].level);
-            TEST_ASSERT_EQUAL_INT(1, *(bool*) data.tlv_els[3].value);
+            TEST_ASSERT_EQUAL_INT(0, data.tlv_els[idx].idx);
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[idx].level);
+            TEST_ASSERT_EQUAL_INT(42, *(int*) data.tlv_els[idx].value);
+            idx++;
 
-            TEST_ASSERT_EQUAL_INT(3, data.tlv_els[4].idx);
-            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[4].level);
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[idx].idx);
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[idx].level);
+            TEST_ASSERT_EQUAL_FLOAT(3.14f, *(float*) data.tlv_els[idx].value);
+            idx++;
+
+            TEST_ASSERT_EQUAL_INT(2, data.tlv_els[idx].idx);
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[idx].level);
+            TEST_ASSERT_EQUAL_INT(1, *(bool*) data.tlv_els[idx].value);
+            idx++;
+
+            TEST_ASSERT_EQUAL_INT(3, data.tlv_els[idx].idx);
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[idx].level);
             TEST_ASSERT_EQUAL_STRING("Hello, World!",
-                                     (const char*) data.tlv_els[4].value);
+                                     (const char*) data.tlv_els[idx].value);
+            idx++;
 
-            TEST_ASSERT_EQUAL_INT(4, data.tlv_els[5].idx);
-            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[5].level);
+            TEST_ASSERT_EQUAL_INT(4, data.tlv_els[idx].idx);
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[idx].level);
             TEST_ASSERT_EQUAL_STRING("1234567890",
-                                     (const char*) data.tlv_els[5].value);
+                                     (const char*) data.tlv_els[idx].value);
+            idx++;
 
-            TEST_ASSERT_EQUAL_INT(5, data.tlv_els[6].idx);
-            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[6].level);
-            TEST_ASSERT_EQUAL_MEMORY(ns.data.sub.blob, data.tlv_els[6].value,
+            TEST_ASSERT_EQUAL_INT(5, data.tlv_els[idx].idx);
+            TEST_ASSERT_EQUAL_INT(1, data.tlv_els[idx].level);
+            TEST_ASSERT_EQUAL_MEMORY(ns.data.sub.blob, data.tlv_els[idx].value,
                                      sizeof(ns.data.sub.blob));
         }
     }
@@ -519,7 +477,7 @@ void test_tlv_encode_decode_struct_with_struct_arrays() {
     TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
 
     print_decode_data_debug(&data);
-    TEST_ASSERT_EQUAL(32, data.tlv_el_num);
+    TEST_ASSERT_EQUAL(34, data.tlv_el_num);
 
     { // check each decoded element
 
@@ -529,9 +487,13 @@ void test_tlv_encode_decode_struct_with_struct_arrays() {
         TEST_ASSERT_EQUAL_INT(TLV_TAG_FIELD, data.tlv_els[0].type);
         TEST_ASSERT_EQUAL_INT(2, *(int*) data.tlv_els[0].value);
 
+        TEST_ASSERT_EQUAL_INT(TLV_TAG_NESTED_LIST, data.tlv_els[1].type);
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[1].level);
+        TEST_ASSERT_EQUAL_INT(1, data.tlv_els[1].idx);
+
         // static structs
         int i = 0;
-        int elIdx = 1;
+        int elIdx = 2;
         do {
             int idx = i * 6;
 
@@ -587,6 +549,11 @@ void test_tlv_encode_decode_struct_with_struct_arrays() {
         // n_dynamic_structs
         TEST_ASSERT_EQUAL_INT(0, data.tlv_els[elIdx].level);
         TEST_ASSERT_EQUAL_INT(2, data.tlv_els[elIdx].idx);
+
+        elIdx += 1;
+        TEST_ASSERT_EQUAL_INT(TLV_TAG_NESTED_LIST, data.tlv_els[elIdx].type);
+        TEST_ASSERT_EQUAL_INT(0, data.tlv_els[elIdx].level);
+        TEST_ASSERT_EQUAL_INT(3, data.tlv_els[elIdx].idx);
 
         // dynamic structs
         i = 0;
@@ -738,6 +705,64 @@ void test_tlv_encode_decode_test_structs() {
     }
 }
 
+typedef struct {
+    nested_struct sub;
+    int id;
+    simple_struct ss;
+} super_nested_struct;
+
+S_SERIALIZE_BEGIN(super_nested_struct)
+S_FIELD_STRUCT(sub, nested_struct)
+S_FIELD_INT32(id)
+S_FIELD_STRUCT(ss, simple_struct)
+S_SERIALIZE_END()
+
+void test_tlv_encode_decode_super_nested_struct() {
+    super_nested_struct sns = {
+        .sub =
+            {
+                .id = ENUM_VALUE_2,
+                .sub =
+                    {
+                        .id = 42,
+                        .value = 3.14f,
+                        .active = true,
+                        .name = "Hello, World!",
+                        .passport_number = "1234567890",
+                        .blob = {0x01, 0x02, 0x03, 0x04},
+                    },
+                .name = "Hello, World2!",
+            },
+        .id = 123,
+        .ss =
+            {
+                .id = 42,
+                .value = 3.14f,
+                .active = true,
+                .name = "Hello, World!",
+                .passport_number = "1234567890",
+                .blob = {0x01, 0x02, 0x03, 0x04},
+            },
+    };
+
+    uint8_t buffer[1024];
+    size_t bytes_written = 0;
+
+    const s_type_info* info = S_GET_STRUCT_TYPE_INFO(super_nested_struct);
+    s_serializer_error err =
+        s_tlv_encode(info, &sns, buffer, sizeof(buffer), &bytes_written);
+
+    TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+    TEST_ASSERT_EQUAL(263, bytes_written);
+
+    struct decode_data data = {0};
+
+    err = s_tlv_decode(buffer, bytes_written, on_tlv_decode_element, &data);
+
+    TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+    print_decode_data_debug(&data);
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -754,6 +779,7 @@ int main() {
     RUN_TEST(test_tlv_encode_decode_struct_with_fixed_strings);
 
     RUN_TEST(test_tlv_encode_decode_test_structs);
+    RUN_TEST(test_tlv_encode_decode_super_nested_struct);
 
     UNITY_END();
     return 0;

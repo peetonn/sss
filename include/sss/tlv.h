@@ -40,4 +40,7 @@ typedef void (*s_tlv_element_cb)(
 s_serializer_error s_tlv_decode(const uint8_t* buffer, size_t buffer_size,
                                 s_tlv_element_cb cb, void* user_data);
 
+// helpers
+const char* s_print_decoded_data(s_tlv_decoded_element_data* el);
+
 #endif
