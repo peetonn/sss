@@ -958,17 +958,17 @@ void tearDown() {}
 int main() {
     UNITY_BEGIN();
 
-    // RUN_TEST(test_serialize_deserialize_simple_struct);
-    // RUN_TEST(test_serialize_deserialize_with_empty_and_null_string);
-    // RUN_TEST(test_serialize_deserialize_nested_struct);
-    // RUN_TEST(test_serialize_deserialize_super_nested_struct);
+    RUN_TEST(test_serialize_deserialize_simple_struct);
+    RUN_TEST(test_serialize_deserialize_with_empty_and_null_string);
+    RUN_TEST(test_serialize_deserialize_nested_struct);
+    RUN_TEST(test_serialize_deserialize_super_nested_struct);
     RUN_TEST(test_serialize_deserialize_union_structs);
-    // RUN_TEST(test_serialize_deserialize_into_json_string);
-    // RUN_TEST(test_serialize_deserialize_struct_with_arrays);
-    // RUN_TEST(test_serialize_deserialize_arrays_into_json_string);
-    // RUN_TEST(tests_seialize_deserialize_struct_with_fixed_strings);
+    RUN_TEST(test_serialize_deserialize_into_json_string);
+    RUN_TEST(test_serialize_deserialize_struct_with_arrays);
+    RUN_TEST(test_serialize_deserialize_arrays_into_json_string);
+    RUN_TEST(tests_seialize_deserialize_struct_with_fixed_strings);
 
-    // RUN_TEST(test_serialize_deserialize_test_structs);
+    RUN_TEST(test_serialize_deserialize_test_structs);
 
     UNITY_END();
     return 0;

@@ -261,7 +261,7 @@ void test_tlv_encode_decode_nested_union_struct() {
     }
     {
         nested_union_struct ns = {
-            .id = ENUM_VALUE_2,
+            .id = ENUM_VALUE_3,
             .data =
                 {
                     .value = 42,
@@ -288,7 +288,7 @@ void test_tlv_encode_decode_nested_union_struct() {
         { // check each decoded element
             TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].idx);
             TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].level);
-            TEST_ASSERT_EQUAL_INT(ENUM_VALUE_2, *(int*) data.tlv_els[0].value);
+            TEST_ASSERT_EQUAL_INT(ENUM_VALUE_3, *(int*) data.tlv_els[0].value);
 
             TEST_ASSERT_EQUAL_INT(1, data.tlv_els[1].idx);
             TEST_ASSERT_EQUAL_INT(0, data.tlv_els[1].level);
@@ -297,7 +297,7 @@ void test_tlv_encode_decode_nested_union_struct() {
     }
     {
         nested_union_struct ns = {
-            .id = ENUM_VALUE_3,
+            .id = ENUM_VALUE_4,
             .data =
                 {
                     .name = "Hello, World!",
@@ -324,7 +324,7 @@ void test_tlv_encode_decode_nested_union_struct() {
         { // check each decoded element
             TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].idx);
             TEST_ASSERT_EQUAL_INT(0, data.tlv_els[0].level);
-            TEST_ASSERT_EQUAL_INT(ENUM_VALUE_3, *(int*) data.tlv_els[0].value);
+            TEST_ASSERT_EQUAL_INT(ENUM_VALUE_4, *(int*) data.tlv_els[0].value);
 
             TEST_ASSERT_EQUAL_INT(1, data.tlv_els[1].idx);
             TEST_ASSERT_EQUAL_INT(0, data.tlv_els[1].level);
