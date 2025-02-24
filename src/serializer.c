@@ -329,7 +329,7 @@ void tlv_decode_deserializer_cb(
 s_serializer_error s_deserialize(s_deserialize_options opts,
                                  const s_type_info* info, void* data,
                                  const uint8_t* buffer, size_t buffer_size) {
-    if (!info || !data || !buffer || !opts.allocator) {
+    if (!info || !buffer || !opts.allocator) {
         LOG_DEBUG("ERROR (deserialize): invalid arguments");
         return SERIALIZER_ERROR_INVALID_TYPE;
     }
