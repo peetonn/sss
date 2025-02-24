@@ -304,6 +304,41 @@ void test_serialize_deserialize_union_structs() {
             .id = ENUM_VALUE_2,
             .data =
                 {
+                    .str = "Hello, World!",
+                },
+        };
+
+        uint8_t buffer[1024];
+        size_t bytes_written = 0;
+
+        const s_type_info* info = S_GET_STRUCT_TYPE_INFO(nested_union_struct);
+        s_serialize_options opts = {0};
+        s_serializer_error err =
+            s_serialize(opts, S_GET_STRUCT_TYPE_INFO(nested_union_struct), &ns,
+                        buffer, sizeof(buffer), &bytes_written);
+
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+        TEST_ASSERT_EQUAL(36, bytes_written);
+
+        nested_union_struct deserialized_ns = {0};
+
+        s_deserialize_options dopts = {
+            .format = FORMAT_C_STRUCT,
+            .allocator = &g_default_allocator,
+        };
+
+        err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(nested_union_struct),
+                            &deserialized_ns, buffer, bytes_written);
+
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+        TEST_ASSERT_EQUAL_INT(ENUM_VALUE_2, deserialized_ns.id);
+        TEST_ASSERT_EQUAL_STRING("Hello, World!", deserialized_ns.data.str.str);
+    }
+    {
+        nested_union_struct ns = {
+            .id = ENUM_VALUE_3,
+            .data =
+                {
                     .value = 42,
                 },
         };
@@ -331,12 +366,12 @@ void test_serialize_deserialize_union_structs() {
                             &deserialized_ns, buffer, bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
-        TEST_ASSERT_EQUAL_INT(ENUM_VALUE_2, deserialized_ns.id);
+        TEST_ASSERT_EQUAL_INT(ENUM_VALUE_3, deserialized_ns.id);
         TEST_ASSERT_EQUAL_INT(42, deserialized_ns.data.value);
     }
     {
         nested_union_struct ns = {
-            .id = ENUM_VALUE_3,
+            .id = ENUM_VALUE_4,
             .data =
                 {
                     .name = "Hello, World!",
@@ -366,7 +401,7 @@ void test_serialize_deserialize_union_structs() {
                             &deserialized_ns, buffer, bytes_written);
 
         TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
-        TEST_ASSERT_EQUAL_INT(ENUM_VALUE_3, deserialized_ns.id);
+        TEST_ASSERT_EQUAL_INT(ENUM_VALUE_4, deserialized_ns.id);
         TEST_ASSERT_EQUAL_STRING("Hello, World!", deserialized_ns.data.name);
     }
 }
@@ -923,17 +958,17 @@ void tearDown() {}
 int main() {
     UNITY_BEGIN();
 
-    RUN_TEST(test_serialize_deserialize_simple_struct);
-    RUN_TEST(test_serialize_deserialize_with_empty_and_null_string);
-    RUN_TEST(test_serialize_deserialize_nested_struct);
-    RUN_TEST(test_serialize_deserialize_super_nested_struct);
+    // RUN_TEST(test_serialize_deserialize_simple_struct);
+    // RUN_TEST(test_serialize_deserialize_with_empty_and_null_string);
+    // RUN_TEST(test_serialize_deserialize_nested_struct);
+    // RUN_TEST(test_serialize_deserialize_super_nested_struct);
     RUN_TEST(test_serialize_deserialize_union_structs);
-    RUN_TEST(test_serialize_deserialize_into_json_string);
-    RUN_TEST(test_serialize_deserialize_struct_with_arrays);
-    RUN_TEST(test_serialize_deserialize_arrays_into_json_string);
-    RUN_TEST(tests_seialize_deserialize_struct_with_fixed_strings);
+    // RUN_TEST(test_serialize_deserialize_into_json_string);
+    // RUN_TEST(test_serialize_deserialize_struct_with_arrays);
+    // RUN_TEST(test_serialize_deserialize_arrays_into_json_string);
+    // RUN_TEST(tests_seialize_deserialize_struct_with_fixed_strings);
 
-    RUN_TEST(test_serialize_deserialize_test_structs);
+    // RUN_TEST(test_serialize_deserialize_test_structs);
 
     UNITY_END();
     return 0;

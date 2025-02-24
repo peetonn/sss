@@ -23,9 +23,6 @@ s_serializer_error s_serialize(s_serialize_options opts,
     return s_tlv_encode(info, data, buffer, buffer_size, bytes_written);
 }
 
-#define MAX_NESTED_LEVELS (32)
-#define MAX_TLV_ELEMS (1024)
-
 struct tlv_el_context {
     int prev_level;
     int prev_idx;
@@ -35,27 +32,6 @@ struct tlv_el_context {
     const s_field_info* parent_info;
     int parent_field_idx;
 };
-
-typedef struct {
-    int tlv_el_idx;
-    int prev_level;
-    const s_type_info* info;
-    s_deserialize_options opts;
-    uint8_t* data;
-    int n_allocations;
-    s_serializer_error err;
-
-    struct {
-        s_tlv_decoded_element_data el;
-        s_type_info* type_info;
-        int field_idx;
-    } decoded_els[MAX_TLV_ELEMS];
-
-    struct {
-        int count;
-        char closing_braces[MAX_NESTED_LEVELS][MAX_NESTED_LEVELS];
-    } json_context;
-} s_deserialize_context;
 
 void s_deserialize_field_c_struct(
     s_deserialize_context* ctx, int field_idx, const void* type_data,
@@ -116,7 +92,10 @@ void tlv_decode_deserializer_cb(
     while (!field_info) {
         if (field_idx < type_info->field_count) {
             // skip optional, non-present fields
-            if (!is_field_present(data, &type_info->fields[field_idx])) {
+            bool decoded_el_is_optional =
+                type_info->fields[field_idx].opts & S_FIELD_OPT_OPTIONAL;
+
+            if (!is_field_present_ctx(ctx, field_idx, type_info)) {
                 field_idx++;
                 continue;
             }
@@ -152,7 +131,7 @@ void tlv_decode_deserializer_cb(
                 if (decoded_el_data->type == TLV_TAG_NESTED &&
                     lvl == decoded_el_data->level + 1 &&
                     (field_idx == decoded_el_data->idx ||
-                     decoded_el_parent_is_array)) {
+                     decoded_el_parent_is_array || decoded_el_is_optional)) {
                     type_info = parent_type_info;
                     field_info = parent_info;
                     lvl -= 1;
@@ -391,6 +370,43 @@ int is_field_present(const void* struct_data, const s_field_info* field) {
     if (field->opts & S_FIELD_OPT_OPTIONAL) {
         void* tag = (void*) ((uint8_t*) struct_data +
                              field->optional_field_info.tag_offset);
+
+        if (field->optional_field_info.tag_type == FIELD_TYPE_INT32) {
+            if (*(int32_t*) tag != field->optional_field_info.tag_value_int) {
+                return 0;
+            }
+        } else {
+            if (strcmp((char*) tag,
+                       field->optional_field_info.tag_value_string) != 0) {
+                return 0;
+            }
+        }
+    }
+
+    return 1;
+}
+
+int is_field_present_ctx(s_deserialize_context* ctx, int field_idx,
+                         const s_type_info* field_type_info) {
+    const s_field_info* field = &field_type_info->fields[field_idx];
+
+    if (field->opts & S_FIELD_OPT_OPTIONAL) {
+        // find tag in previously decoded elements
+        const uint8_t* tag_data = NULL;
+        size_t tag_field_offset = field->optional_field_info.tag_offset;
+
+        for (int i = ctx->tlv_el_idx; i >= 0; i--) {
+            if (ctx->decoded_els[i].type_info == field_type_info &&
+                field_type_info->fields[ctx->decoded_els[i].field_idx].offset ==
+                    tag_field_offset) {
+                tag_data = ctx->decoded_els[i].el.value;
+            }
+        }
+
+        if (!tag_data)
+            return 0;
+
+        void* tag = (void*) tag_data;
 
         if (field->optional_field_info.tag_type == FIELD_TYPE_INT32) {
             if (*(int32_t*) tag != field->optional_field_info.tag_value_int) {

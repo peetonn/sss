@@ -31,6 +31,7 @@ enum some_enum {
     ENUM_VALUE_1,
     ENUM_VALUE_2,
     ENUM_VALUE_3,
+    ENUM_VALUE_4,
 };
 typedef struct {
     enum some_enum id;
@@ -41,9 +42,14 @@ S_DEFINE_TYPE_INFO(nested_struct);
 
 // nested union
 typedef struct {
+    char* str;
+} str_struct;
+
+typedef struct {
     enum some_enum id;
     union {
         simple_struct sub;
+        str_struct str;
         int32_t value;
         char name[32];
     } data;
