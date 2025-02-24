@@ -38,13 +38,18 @@ void s_deserialize_field_c_struct(
     const s_type_info* type_info, const s_field_info* parent_info,
     const s_tlv_decoded_element_data* decoded_el_data);
 void s_deserialize_field_json_string(
-    s_deserialize_context* ctx, int field_idx, const void* type_data,
-    const s_type_info* type_info, const s_field_info* parent_info,
+    s_deserialize_context* ctx, int field_idx, const s_type_info* type_info,
+    const s_field_info* parent_info,
     const s_tlv_decoded_element_data* decoded_el_data);
 void s_deserialize_field(s_deserialize_context* ctx, int field_idx,
                          const void* type_data, const s_type_info* type_info,
                          const s_field_info* parent_info,
                          const s_tlv_decoded_element_data* decoded_el_data);
+
+#define ENABLE_FOR_C_STRUCT(ctx, block)        \
+    if (ctx->opts.format == FORMAT_C_STRUCT) { \
+        block                                  \
+    }
 
 void tlv_decode_deserializer_cb(
     const s_tlv_decoded_element_data* decoded_el_data, void* user_data) {
@@ -54,8 +59,7 @@ void tlv_decode_deserializer_cb(
     if (!decoded_el_data) {
         switch (ctx->opts.format) {
         case FORMAT_JSON_STRING:
-            s_deserialize_field_json_string(ctx, 0, ctx->data, ctx->info, NULL,
-                                            NULL);
+            s_deserialize_field_json_string(ctx, 0, ctx->data, ctx->info, NULL);
             break;
         case FORMAT_CUSTOM: {
             if (ctx->opts.custom_deserializer)
@@ -74,7 +78,7 @@ void tlv_decode_deserializer_cb(
         const s_field_info* parent_info;
         const s_type_info* type_info;
         int last_field_idx;
-        void* data;
+        const void* data;
         void* array_data;
         uint32_t array_size;
         uint32_t pending_array_el_count;
@@ -82,7 +86,7 @@ void tlv_decode_deserializer_cb(
 
     // find field_info for current element
     const s_type_info* type_info = type_info_stack[0].type_info;
-    void* data = type_info_stack[0].data;
+    const void* data = type_info_stack[0].data;
     const s_type_info* parent_type_info = NULL;
     const s_field_info* parent_info = NULL;
     const s_field_info* field_info = NULL;
@@ -102,7 +106,10 @@ void tlv_decode_deserializer_cb(
 
             switch (type_info->fields[field_idx].type) {
             case FIELD_TYPE_STRUCT: {
-                data = (uint8_t*) data + type_info->fields[field_idx].offset;
+                ENABLE_FOR_C_STRUCT(ctx, {
+                    data =
+                        (uint8_t*) data + type_info->fields[field_idx].offset;
+                })
 
                 type_info_stack[lvl].last_field_idx = field_idx;
                 lvl += 1;
@@ -194,7 +201,7 @@ void tlv_decode_deserializer_cb(
                     if (is_dynamic) {
                         // special case for c structs -- allocate dynamic array
                         // here
-                        if (ctx->opts.format == FORMAT_C_STRUCT) {
+                        ENABLE_FOR_C_STRUCT(ctx, {
                             void** array_data_ptr =
                                 (void**) ((uint8_t*) data +
                                           type_info->fields[field_idx].offset);
@@ -216,10 +223,12 @@ void tlv_decode_deserializer_cb(
                             }
 
                             data = *array_data_ptr;
-                        }
+                        })
                     } else {
-                        data = (uint8_t*) data +
-                               type_info->fields[field_idx].offset;
+                        ENABLE_FOR_C_STRUCT(ctx, {
+                            data = (uint8_t*) data +
+                                   type_info->fields[field_idx].offset;
+                        })
                     }
 
                     type_info_stack[lvl].last_field_idx = field_idx;
@@ -276,9 +285,11 @@ void tlv_decode_deserializer_cb(
                 type_info_stack[lvl].pending_array_el_count -= 1;
                 int idx = type_info_stack[lvl].array_size -
                           type_info_stack[lvl].pending_array_el_count;
-                // shift data pointer to next element
-                data = type_info_stack[lvl].array_data +
-                       type_info_stack[lvl].type_info->type_size * idx;
+                ENABLE_FOR_C_STRUCT(ctx, {
+                    // shift data pointer to next element
+                    data = type_info_stack[lvl].array_data +
+                           type_info_stack[lvl].type_info->type_size * idx;
+                })
                 field_idx = 0;
 
                 if (type_info_stack[lvl].pending_array_el_count)
@@ -339,28 +350,23 @@ s_serializer_error s_deserialize(s_deserialize_options opts,
         s_tlv_decode(buffer, buffer_size, tlv_decode_deserializer_cb, &ctx);
 
     if (err != SERIALIZER_OK || ctx.err != SERIALIZER_OK) {
-        // TODO: account for nested structs
+        // TODO: this has to be replaced with allocations list for easier
+        // cleanup
         if (ctx.n_allocations) {
-            for (int i = 0; i < ctx.info->field_count; i++) {
-                const s_field_info* field = &info->fields[i];
+            // for (int i = 0; i < ctx.info->field_count; i++) {
+            //     const s_field_info* field = &info->fields[i];
 
-                if (field->type == FIELD_TYPE_STRING) {
-                    char* str = *(char**) ((uint8_t*) ctx.data + field->offset);
-                    if (str) {
-                        opts.allocator->deallocate(str, opts.user_data);
-                    }
-                }
-            }
+            //     if (field->type == FIELD_TYPE_STRING) {
+            //         char* str = *(char**) ((uint8_t*) ctx.data +
+            //         field->offset); if (str) {
+            //             opts.allocator->deallocate(str, opts.user_data);
+            //         }
+            //     }
+            // }
         }
 
         return err != SERIALIZER_OK ? err : ctx.err;
     }
-
-    // closing bracket handling for json string
-    // if (opts.format == FORMAT_JSON_STRING) {
-    //     char* json_str_buffer = (char*) ctx.data;
-    //     json_str_buffer[strlen(json_str_buffer) - 1] = '}';
-    // }
 
     return SERIALIZER_OK;
 }
@@ -442,8 +448,8 @@ void s_deserialize_field(s_deserialize_context* ctx, int field_idx,
     } break;
 
     case FORMAT_JSON_STRING: {
-        s_deserialize_field_json_string(ctx, field_idx, type_data, type_info,
-                                        parent_info, decoded_el_data);
+        s_deserialize_field_json_string(ctx, field_idx, type_info, parent_info,
+                                        decoded_el_data);
     } break;
 
     case FORMAT_CUSTOM: {
@@ -586,8 +592,8 @@ void s_deserialize_field_c_struct(
         brace[0]
 
 void s_deserialize_field_json_string(
-    s_deserialize_context* ctx, int field_idx, const void* type_data,
-    const s_type_info* type_info, const s_field_info* parent_info,
+    s_deserialize_context* ctx, int field_idx, const s_type_info* type_info,
+    const s_field_info* parent_info,
     const s_tlv_decoded_element_data* decoded_el_data) {
 
     // check for endo of decoding here
