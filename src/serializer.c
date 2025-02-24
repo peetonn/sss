@@ -409,7 +409,11 @@ int is_field_present_ctx(s_deserialize_context* ctx, int field_idx,
         void* tag = (void*) tag_data;
 
         if (field->optional_field_info.tag_type == FIELD_TYPE_INT32) {
-            if (*(int32_t*) tag != field->optional_field_info.tag_value_int) {
+            int32_t tag_value;
+            // use memcpy to avoid memory alignment issues
+            memcpy(&tag_value, tag_data, sizeof(int32_t));
+
+            if (tag_value != field->optional_field_info.tag_value_int) {
                 return 0;
             }
         } else {
