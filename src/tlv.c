@@ -12,6 +12,7 @@
 
 // system includes
 #include <arpa/inet.h>
+#include <stdio.h>
 
 #pragma pack(push, 1)
 typedef struct {
