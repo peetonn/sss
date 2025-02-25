@@ -268,10 +268,16 @@ void tlv_decode_deserializer_cb(
                 if (tlv_idx == ctx->tlv_el_idx) {
                     field_info = &type_info->fields[field_idx];
 
-                    if (!parent_info || parent_info->type != FIELD_TYPE_ARRAY) {
+                    // store decoded data for later use
+                    if (ctx->tlv_el_idx < MAX_TLV_ELEMS) {
                         ctx->decoded_els[ctx->tlv_el_idx].el = *decoded_el_data;
                         ctx->decoded_els[ctx->tlv_el_idx].type_info = type_info;
                         ctx->decoded_els[ctx->tlv_el_idx].field_idx = field_idx;
+                    } else {
+                        LOG_DEBUG(
+                            "ERROR (decode cb): too many decoded elements");
+                        ctx->err = SERIALIZER_ERROR_INVALID_TYPE;
+                        return;
                     }
                 } else {
                     tlv_idx++;
