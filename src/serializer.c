@@ -245,18 +245,18 @@ void tlv_decode_deserializer_cb(
                     type_info_stack[lvl].array_size = array_size;
                     type_info_stack[lvl].pending_array_el_count = array_size;
 
-                    parent_info = type_info_stack[lvl].parent_info;
-
                     if (decoded_el_data->type == TLV_TAG_NESTED_LIST &&
                         lvl == decoded_el_data->level + 1 &&
                         field_idx == decoded_el_data->idx) {
                         // if that's the field of array itself -- dont go level
                         // up
-                        field_info = parent_info;
+                        field_info = type_info_stack[lvl].parent_info;
+                        ;
                         lvl -= 1;
                     } else {
                         field_idx = 0;
                         parent_type_info = type_info;
+                        parent_info = type_info_stack[lvl].parent_info;
                         type_info = type_info_stack[lvl].type_info;
                     }
 
