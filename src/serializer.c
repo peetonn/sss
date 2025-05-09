@@ -124,10 +124,6 @@ void tlv_decode_deserializer_cb(
                 type_info_stack[lvl].array_size = 0;
                 type_info_stack[lvl].pending_array_el_count = 0;
 
-                parent_type_info = type_info;
-                parent_info = type_info_stack[lvl].parent_info;
-                type_info = type_info_stack[lvl].type_info;
-
                 // if we got nested element callback -- quit here
                 bool decoded_el_parent_is_array =
                     type_info_stack[decoded_el_data->level].parent_info
@@ -139,10 +135,15 @@ void tlv_decode_deserializer_cb(
                     lvl == decoded_el_data->level + 1 &&
                     (field_idx == decoded_el_data->idx ||
                      decoded_el_parent_is_array || decoded_el_is_optional)) {
-                    type_info = parent_type_info;
-                    field_info = parent_info;
+                    // type_info = parent_type_info;
+                    field_info =
+                        type_info_stack[lvl].parent_info; // parent_info;
                     lvl -= 1;
                 } else {
+                    parent_type_info = type_info;
+                    parent_info = type_info_stack[lvl].parent_info;
+                    type_info = type_info_stack[lvl].type_info;
+
                     field_idx = 0;
                 }
 
@@ -250,8 +251,7 @@ void tlv_decode_deserializer_cb(
                         field_idx == decoded_el_data->idx) {
                         // if that's the field of array itself -- dont go level
                         // up
-                        field_info = type_info_stack[lvl].parent_info;
-                        ;
+                        field_info = &type_info->fields[field_idx];
                         lvl -= 1;
                     } else {
                         field_idx = 0;
@@ -414,6 +414,7 @@ int is_field_present_ctx(s_deserialize_context* ctx, int field_idx,
                 field_type_info->fields[ctx->decoded_els[i].field_idx].offset ==
                     tag_field_offset) {
                 tag_data = ctx->decoded_els[i].el.value;
+                break;
             }
         }
 
@@ -463,9 +464,9 @@ void s_deserialize_field(s_deserialize_context* ctx, int field_idx,
     case FORMAT_CUSTOM: {
         if (ctx->opts.custom_deserializer) {
             ctx->opts.custom_deserializer(
-                decoded_el_data->idx, decoded_el_data->level,
-                decoded_el_data->length, decoded_el_data->value, field_info,
-                type_info, parent_info, ctx->opts.user_data);
+                field_idx, decoded_el_data->level, decoded_el_data->length,
+                decoded_el_data->value, field_info, type_info, parent_info,
+                ctx->opts.user_data);
         }
     } break;
 
@@ -678,27 +679,43 @@ void s_deserialize_field_json_string(
 
     // print field value
     switch (field_info->type) {
-    case FIELD_TYPE_INT8:
-    case FIELD_TYPE_UINT8:
-    case FIELD_TYPE_INT16:
-    case FIELD_TYPE_UINT16:
-    case FIELD_TYPE_INT32:
-    case FIELD_TYPE_UINT32:
-    case FIELD_TYPE_INT64:
-    case FIELD_TYPE_UINT64: {
-        JSON_APPENDF(json_str_buffer, "%d", *(int*) decoded_el_data->value);
+    case FIELD_TYPE_INT8: {
+        JSON_APPENDF(json_str_buffer, "%d", *(int8_t*) decoded_el_data->value);
     } break;
-
-    case FIELD_TYPE_FLOAT:
-    case FIELD_TYPE_DOUBLE: {
+    case FIELD_TYPE_UINT8: {
+        JSON_APPENDF(json_str_buffer, "%d", *(uint8_t*) decoded_el_data->value);
+    } break;
+    case FIELD_TYPE_INT16: {
+        JSON_APPENDF(json_str_buffer, "%d", *(int16_t*) decoded_el_data->value);
+    } break;
+    case FIELD_TYPE_UINT16: {
+        JSON_APPENDF(json_str_buffer, "%d",
+                     *(uint16_t*) decoded_el_data->value);
+    } break;
+    case FIELD_TYPE_INT32: {
+        JSON_APPENDF(json_str_buffer, "%d", *(int32_t*) decoded_el_data->value);
+    } break;
+    case FIELD_TYPE_UINT32: {
+        JSON_APPENDF(json_str_buffer, "%d",
+                     *(uint32_t*) decoded_el_data->value);
+    } break;
+    case FIELD_TYPE_INT64: {
+        JSON_APPENDF(json_str_buffer, "%d", *(int64_t*) decoded_el_data->value);
+    } break;
+    case FIELD_TYPE_UINT64: {
+        JSON_APPENDF(json_str_buffer, "%d",
+                     *(uint64_t*) decoded_el_data->value);
+    } break;
+    case FIELD_TYPE_FLOAT: {
         JSON_APPENDF(json_str_buffer, "%f", *(float*) decoded_el_data->value);
     } break;
-
+    case FIELD_TYPE_DOUBLE: {
+        JSON_APPENDF(json_str_buffer, "%f", *(double*) decoded_el_data->value);
+    } break;
     case FIELD_TYPE_BOOL: {
         JSON_APPEND(json_str_buffer,
                     *(bool*) decoded_el_data->value ? "true" : "false");
     } break;
-
     case FIELD_TYPE_BLOB: {
         JSON_APPEND(json_str_buffer, JSON_OPEN_BRACE_ARRAY);
 
@@ -712,11 +729,9 @@ void s_deserialize_field_json_string(
 
         JSON_APPEND(json_str_buffer, JSON_CLOSE_BRACE_ARRAY);
     } break;
-
     case FIELD_TYPE_STRING: {
         JSON_APPENDF(json_str_buffer, "\"%s\"", (char*) decoded_el_data->value);
     } break;
-
     case FIELD_TYPE_ARRAY: {
         bool is_struct_array = field_info->struct_type_info;
         bool is_dynamic_array = field_info->opts & S_FIELD_OPT_ARRAY_DYNAMIC;
@@ -725,13 +740,27 @@ void s_deserialize_field_json_string(
             break;
 
         // builtin arrays
-        int n_elements = decoded_el_data->length / field_info->size;
         bool is_float_array = field_info->array_field_info.builtin_type ==
                               S_ARRAY_BUILTIN_TYPE_FLOAT;
         bool is_string_array = field_info->array_field_info.builtin_type ==
                                S_ARRAY_BUILTIN_TYPE_STRING;
+        int n_elements = 0;
+
+        // if builtin type is strings -- unpack data by counting all '\0'
+        // occurences
+        if (is_string_array) {
+            const uint8_t* p = decoded_el_data->value;
+            while ((p = (uint8_t*) memchr(p, '\0',
+                                          decoded_el_data->length -
+                                              (p - decoded_el_data->value)))) {
+                n_elements++;
+                p++;
+            }
+        } else
+            n_elements = decoded_el_data->length / field_info->size;
 
         JSON_APPEND(json_str_buffer, JSON_OPEN_BRACE_ARRAY);
+        const uint8_t* p = decoded_el_data->value;
 
         for (int i = 0; i < n_elements; i++) {
             if (i != 0)
@@ -757,8 +786,9 @@ void s_deserialize_field_json_string(
                 }
             } break;
             case S_ARRAY_BUILTIN_TYPE_STRING: {
-                JSON_APPENDF(json_str_buffer, "\"%s\"",
-                             ((char**) decoded_el_data->value)[i]);
+                JSON_APPENDF(json_str_buffer, "\"%s\"", (char*) p);
+
+                p += strlen((char*) p) + 1;
             } break;
             default: {
                 switch (field_info->size) {

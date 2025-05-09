@@ -105,4 +105,56 @@ typedef struct {
 } TestStruct3;
 S_DEFINE_TYPE_INFO(TestStruct3);
 
+// sample generic "message" struct
+enum sss_message_type {
+    SSS_MSG_TYPE_CUSTOM_DICT = 0,
+    SSS_MSG_TYPE_BLOB,
+
+    SSS_MSG_TYPE_MAX = 0xFF
+};
+
+enum sss_generic_value_type {
+    SSS_GENERIC_VALUE_TYPE_NONE = 0,
+    SSS_GENERIC_VALUE_TYPE_INT32,
+    SSS_GENERIC_VALUE_TYPE_DOUBLE,
+    SSS_GENERIC_VALUE_TYPE_STRING,
+
+    SSS_GENERIC_VALUE_TYPE_MAX = 0xFF
+};
+
+typedef struct {
+    enum sss_generic_value_type type_;
+    union {
+        int int_;
+        double double_;
+        char string_[32];
+    } as_;
+} sss_generic_value;
+S_DEFINE_TYPE_INFO(sss_generic_value);
+
+typedef struct {
+    int n_entries_;
+    char keys_[16][32];
+    sss_generic_value values_[16];
+} sss_custom_dict_data;
+S_DEFINE_TYPE_INFO(sss_custom_dict_data);
+
+typedef struct {
+    int size_;
+    uint8_t* data_;
+} sss_blob_data;
+S_DEFINE_TYPE_INFO(sss_blob_data);
+
+typedef struct {
+    enum sss_message_type type_;
+    double timestamp_usec_;
+    int seq_no_;
+
+    union {
+        sss_custom_dict_data custom_dict_data_;
+        sss_blob_data blob_data_;
+    } as_;
+} sss_system_message;
+S_DEFINE_TYPE_INFO(sss_system_message);
+
 #endif

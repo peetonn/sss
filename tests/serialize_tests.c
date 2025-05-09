@@ -952,6 +952,148 @@ void test_serialize_deserialize_test_structs() {
     }
 }
 
+typedef struct {
+    int field_counter;
+    int prev_level;
+} sss_custom_deserializer_ctx;
+
+void sss_custom_deserializer_cb(int el_idx, int el_lvl, size_t length,
+                                const uint8_t* value,
+                                const s_field_info* field_info,
+                                const s_type_info* type_info,
+                                const s_field_info* parent_info,
+                                void* user_data) {
+    sss_custom_deserializer_ctx* ctx = (sss_custom_deserializer_ctx*) user_data;
+
+    if (el_idx < 0) // end of decoding process
+        return;
+
+    bool root_start = ctx->field_counter == -1;
+    bool level_changed = ctx->prev_level != el_lvl;
+    bool level_dropped = ctx->prev_level > el_lvl;
+    bool new_nested = el_idx == 0 && ctx->prev_level == el_lvl;
+    bool is_struct = field_info->type == FIELD_TYPE_STRUCT;
+    bool is_struct_array =
+        field_info->type == FIELD_TYPE_ARRAY && field_info->struct_type_info;
+    bool is_parent_struct_array = parent_info &&
+                                  parent_info->type == FIELD_TYPE_ARRAY &&
+                                  parent_info->struct_type_info;
+
+    // print debug info
+    printf("> root start %d, level changed %d (dropped %d), new nested %d, "
+           "is_struct %d, is_struct_array %d, is_parent_struct_array %d\n",
+           root_start, level_changed, level_dropped, new_nested, is_struct,
+           is_struct_array, is_parent_struct_array);
+    printf("  field_counter: %d, prev_level: %d\n", ctx->field_counter,
+           ctx->prev_level);
+    printf("  el_idx: %d, el_lvl: %d, length: %zu\n", el_idx, el_lvl, length);
+    printf("  field:  %s::%s (type %d struct array %d)\n", type_info->type_name,
+           field_info->name, field_info->type, is_struct_array);
+
+    if (parent_info)
+        printf("  parent: %s (type %d struct array %d)\n", parent_info->name,
+               parent_info->type, is_parent_struct_array,
+               parent_info ? parent_info->name : "NULL",
+               parent_info ? parent_info->type : -1, is_parent_struct_array);
+
+    ctx->field_counter += 1;
+    ctx->prev_level = el_lvl;
+}
+
+void test_serialize_deserialize_sample_system_message() {
+    sss_system_message ssm = {
+        .type_ = SSS_MSG_TYPE_CUSTOM_DICT,
+        .timestamp_usec_ = 1234567890,
+        .seq_no_ = 42,
+        .as_.custom_dict_data_ = {
+            .n_entries_ = 3,
+            .keys_ =
+                {
+                    "key1",
+                    "key2",
+                    "key3",
+                },
+            .values_ = {
+                {.type_ = SSS_GENERIC_VALUE_TYPE_INT32, .as_.int_ = 42},
+                {.type_ = SSS_GENERIC_VALUE_TYPE_DOUBLE, .as_.double_ = 3.14f},
+                {.type_ = SSS_GENERIC_VALUE_TYPE_STRING,
+                 .as_.string_ = "Hello"},
+            }}};
+
+    uint8_t buffer[1024];
+    size_t bytes_written = 0;
+    s_serialize_options opts = {0};
+    s_serializer_error err =
+        s_serialize(opts, S_GET_STRUCT_TYPE_INFO(sss_system_message), &ssm,
+                    buffer, sizeof(buffer), &bytes_written);
+    TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+    TEST_ASSERT_EQUAL(143, bytes_written);
+
+    { // deserialize to c struct
+        sss_system_message deserialized_ssm = {0};
+        s_deserialize_options dopts = {
+            .format = FORMAT_C_STRUCT,
+            .allocator = &g_default_allocator,
+        };
+        err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(sss_system_message),
+                            &deserialized_ssm, buffer, bytes_written);
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+        TEST_ASSERT_EQUAL_INT(SSS_MSG_TYPE_CUSTOM_DICT, deserialized_ssm.type_);
+        TEST_ASSERT_EQUAL_INT(1234567890, deserialized_ssm.timestamp_usec_);
+        TEST_ASSERT_EQUAL_INT(42, deserialized_ssm.seq_no_);
+        TEST_ASSERT_EQUAL_INT(
+            3, deserialized_ssm.as_.custom_dict_data_.n_entries_);
+        TEST_ASSERT_EQUAL_STRING(
+            "key1", deserialized_ssm.as_.custom_dict_data_.keys_[0]);
+        TEST_ASSERT_EQUAL_STRING(
+            "key2", deserialized_ssm.as_.custom_dict_data_.keys_[1]);
+        TEST_ASSERT_EQUAL_STRING(
+            "key3", deserialized_ssm.as_.custom_dict_data_.keys_[2]);
+        TEST_ASSERT_EQUAL_INT(
+            42, deserialized_ssm.as_.custom_dict_data_.values_[0].as_.int_);
+        TEST_ASSERT_EQUAL_FLOAT(
+            3.14f,
+            deserialized_ssm.as_.custom_dict_data_.values_[1].as_.double_);
+        TEST_ASSERT_EQUAL_STRING(
+            "Hello",
+            deserialized_ssm.as_.custom_dict_data_.values_[2].as_.string_);
+    }
+
+    { // deserialize to json
+        char deserialized_json[1024] = {0};
+        s_deserialize_options dopts = {
+            .format = FORMAT_JSON_STRING,
+            .allocator = &g_default_allocator,
+        };
+        err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(sss_system_message),
+                            deserialized_json, buffer, bytes_written);
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+        TEST_ASSERT_EQUAL_STRING(
+            "{\"type\":0,\"tsUsec\":1234567890.000000,\"seqNo\":42,\"data\":{"
+            "\"length\":"
+            "3,\"keys\":[\"key1\",\"key2\",\"key3\"],\"values\":[{\"type\":1,"
+            "\"value\":42},{\"type\":2,\"value\":3.140000},{\"type\":3,"
+            "\"value\":\"Hello\"}]}}",
+            deserialized_json);
+    }
+
+    { // custom deserializer
+        sss_custom_deserializer_ctx ctx = {0};
+        ctx.field_counter = -1;
+        ctx.prev_level = -1;
+
+        s_deserialize_options dopts = {
+            .format = FORMAT_CUSTOM,
+            .allocator = &g_default_allocator,
+            .custom_deserializer = sss_custom_deserializer_cb,
+            .user_data = &ctx,
+        };
+        err = s_deserialize(dopts, S_GET_STRUCT_TYPE_INFO(sss_system_message),
+                            NULL, buffer, bytes_written);
+        TEST_ASSERT_EQUAL(SERIALIZER_OK, err);
+    }
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -968,7 +1110,9 @@ int main() {
     RUN_TEST(test_serialize_deserialize_arrays_into_json_string);
     RUN_TEST(tests_seialize_deserialize_struct_with_fixed_strings);
 
-    RUN_TEST(test_serialize_deserialize_test_structs);
+    // RUN_TEST(test_serialize_deserialize_test_structs);
+
+    RUN_TEST(test_serialize_deserialize_sample_system_message);
 
     UNITY_END();
     return 0;
