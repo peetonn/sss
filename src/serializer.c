@@ -59,7 +59,7 @@ void tlv_decode_deserializer_cb(
     if (!decoded_el_data) {
         switch (ctx->opts.format) {
         case FORMAT_JSON_STRING:
-            s_deserialize_field_json_string(ctx, 0, ctx->data, ctx->info, NULL);
+            s_deserialize_field_json_string(ctx, 0, ctx->info, NULL, NULL);
             break;
         case FORMAT_CUSTOM: {
             if (ctx->opts.custom_deserializer)
